@@ -35,7 +35,7 @@ def test_happy_path_has_one_event_mapping_per_transition() -> None:
         AgentEventName.ANALYSIS_STARTED,
         AgentEventName.ROOT_CAUSE_FOUND,
         AgentEventName.PATCH_GENERATED,
-        AgentEventName.APPROVAL_REQUESTED,
+        AgentEventName.PATCH_AWAITING_APPROVAL,
         AgentEventName.PATCH_APPROVED,
         AgentEventName.TESTS_STARTED,
         AgentEventName.TESTS_PASSED,

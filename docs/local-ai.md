@@ -1,6 +1,6 @@
 # Local AI analysis
 
-Milestone 3 is diagnosis-only. It accepts pasted text, extracts deterministic error facts, selects small safe source windows, calls a local provider, validates the response, and persists a concise root cause. It cannot write code, generate/apply a patch, or run a command.
+Milestone 3 analysis remains diagnosis-only. Milestone 4 adds a separate patch provider whose output is always untrusted and cannot write files. See [patch-engine.md](patch-engine.md) for the approval and mutation boundary.
 
 ## Providers
 
@@ -45,3 +45,5 @@ $env:POCKETPILOT_OLLAMA_MODEL='your-installed-model:tag'
 ```
 
 If Ollama or the model is unavailable, the test skips cleanly. Do not install or pull a model as part of verification.
+
+The same opt-in flag covers Ollama patch JSON testing. Real patch output passes the identical schema, diff, path, hash, applicability, and risk validation used for deterministic mock proposals.

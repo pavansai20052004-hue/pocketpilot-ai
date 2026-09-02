@@ -22,6 +22,7 @@ from pocketpilot_agent.models import (
     SessionTransitionResult,
     TransitionDebugSessionRequest,
 )
+from pocketpilot_agent.patch_store import PatchNotFoundError
 from pocketpilot_agent.session_service import DebugSessionService
 from pocketpilot_agent.session_store import (
     SessionNotFoundError,
@@ -138,11 +139,19 @@ async def stream_session_events(
     last_sent = max(0, after_sequence)
     async with broker.subscribe(session_id) as queue:
         snapshot = service.events(session_id, last_sent)
+        patch = None
+        patch_service = getattr(websocket.app.state, "patch_service", None)
+        if patch_service is not None:
+            try:
+                patch = patch_service.get(session_id).model_dump(mode="json")
+            except PatchNotFoundError:
+                patch = None
         await websocket.send_json(
             {
                 "type": "snapshot",
                 "session": service.get(session_id).model_dump(mode="json"),
                 "events": [event.model_dump(mode="json") for event in snapshot.events],
+                "patch": patch,
             }
         )
         if snapshot.events:

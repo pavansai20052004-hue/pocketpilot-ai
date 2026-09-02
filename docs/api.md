@@ -102,3 +102,30 @@ Content-Type: application/json
 The synchronous response contains the final `ROOT_CAUSE_FOUND` session and persisted analysis. WebSocket subscribers receive `analysis_requested`, parsing/context/provider/validation progress, and `root_cause_found`. Progress summaries contain paths and line ranges, never source bodies.
 
 Fetch the durable result with `GET /api/v1/sessions/{session_id}/analysis`. Typed provider failures use `PROVIDER_UNAVAILABLE`, `MODEL_NOT_FOUND`, `TIMEOUT`, or `INVALID_RESPONSE`, transition an active analysis to `FAILED`, and return an appropriate 503, 504, or 422 response. Stale or simultaneous requests return 409.
+
+## Patch lifecycle
+
+Generate only from `ROOT_CAUSE_FOUND` using the current revision:
+
+```http
+POST /api/v1/sessions/{session_id}/patches/generate
+{"expected_revision":3}
+```
+
+A successful response reaches `AWAITING_APPROVAL` and contains the complete unified diff and validation/risk result. Files are unchanged. Fetch the durable public view with `GET /api/v1/sessions/{session_id}/patches/current`.
+
+Approve or reject the exact proposal:
+
+```http
+POST /api/v1/sessions/{session_id}/patches/{patch_id}/approve
+{"expected_revision":5}
+```
+
+```http
+POST /api/v1/sessions/{session_id}/patches/{patch_id}/reject
+{"expected_revision":5}
+```
+
+Approval synchronously revalidates base hashes, applies atomically, chooses an existing safe command, and returns `SUCCESS` or `FAILED`. Rejection transitions to `FAILED` without writes. Wrong patch IDs, revisions, concurrent operations, stale files, and rollback conflicts return 409. Invalid provider output/diffs return 422; provider availability errors return 503/504.
+
+Rollback a completed attempt with `POST /api/v1/sessions/{session_id}/patches/{patch_id}/rollback` and the current revision. Rollback succeeds only when every current file hash equals the stored patched hash.

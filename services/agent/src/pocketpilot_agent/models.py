@@ -76,15 +76,25 @@ class AgentEventName(StrEnum):
     ANALYSIS_FAILED = "analysis_failed"
     ROOT_CAUSE_FOUND = "root_cause_found"
     PATCH_GENERATED = "patch_generated"
+    PATCH_GENERATION_STARTED = "patch_generation_started"
+    PATCH_VALIDATION_STARTED = "patch_validation_started"
+    PATCH_VALIDATION_COMPLETED = "patch_validation_completed"
+    PATCH_AWAITING_APPROVAL = "patch_awaiting_approval"
     APPROVAL_REQUESTED = "approval_requested"
     PATCH_APPROVED = "patch_approved"
+    PATCH_REJECTED = "patch_rejected"
+    PATCH_APPLY_STARTED = "patch_apply_started"
+    PATCH_FILE_APPLIED = "patch_file_applied"
     PATCH_APPLIED = "patch_applied"
+    PATCH_APPLY_FAILED = "patch_apply_failed"
     TESTS_STARTED = "tests_started"
     TESTS_PASSED = "tests_passed"
     TESTS_FAILED = "tests_failed"
     SESSION_FAILED = "session_failed"
     RETRY_STARTED = "retry_started"
     ROLLBACK_COMPLETED = "rollback_completed"
+    ROLLBACK_STARTED = "rollback_started"
+    ROLLBACK_FAILED = "rollback_failed"
 
 
 class DetectedLanguage(StrictModel):
@@ -375,3 +385,137 @@ class ProviderHealth(StrictModel):
     model_available: bool
     latency_ms: int = Field(ge=0)
     detail: str
+
+
+class PatchRisk(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    BLOCKED = "BLOCKED"
+
+
+class PatchStatus(StrEnum):
+    PROPOSED = "PROPOSED"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    REJECTED = "REJECTED"
+    APPROVED = "APPROVED"
+    APPLYING = "APPLYING"
+    APPLIED = "APPLIED"
+    VERIFIED = "VERIFIED"
+    FAILED = "FAILED"
+    ROLLED_BACK = "ROLLED_BACK"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
+
+
+class PatchChangeType(StrEnum):
+    MODIFY = "MODIFY"
+
+
+class RollbackStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    COMPLETED = "COMPLETED"
+    CONFLICT = "CONFLICT"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class PatchFileChange(StrictModel):
+    relative_path: str
+    change_type: PatchChangeType = PatchChangeType.MODIFY
+    unified_diff: str = Field(min_length=1, max_length=100_000)
+    explanation: str = Field(min_length=1, max_length=1000)
+    original_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    additions: int = Field(ge=0)
+    deletions: int = Field(ge=0)
+
+
+class PatchValidationResult(StrictModel):
+    valid: bool
+    risk: PatchRisk
+    errors: list[str]
+    warnings: list[str]
+    files_changed: int = Field(ge=0)
+    additions: int = Field(ge=0)
+    deletions: int = Field(ge=0)
+    duration_ms: int = Field(ge=0)
+
+
+class PatchProposal(StrictModel):
+    id: str
+    session_id: str
+    title: str = Field(min_length=1, max_length=200)
+    summary: str = Field(min_length=1, max_length=2000)
+    rationale: str = Field(min_length=1, max_length=3000)
+    confidence: AnalysisConfidence
+    files: list[PatchFileChange] = Field(min_length=1, max_length=5)
+    expected_effect: str = Field(min_length=1, max_length=2000)
+    risks: list[str] = Field(max_length=20)
+    validation_notes: list[str] = Field(max_length=20)
+    created_at: datetime
+    provider: str
+    model: str
+    retry_number: int = Field(ge=0, le=2)
+    generation_duration_ms: int = Field(ge=0)
+
+
+class PatchProviderFile(StrictModel):
+    relative_path: str
+    unified_diff: str
+    explanation: str
+
+
+class PatchProviderOutput(StrictModel):
+    title: str
+    summary: str
+    rationale: str
+    confidence: AnalysisConfidence
+    files: list[PatchProviderFile] = Field(min_length=1, max_length=5)
+    expected_effect: str
+    risks: list[str] = Field(default_factory=list)
+    validation_notes: list[str] = Field(default_factory=list)
+
+
+class GeneratePatchRequest(StrictModel):
+    expected_revision: int = Field(ge=0)
+
+
+class PatchDecisionRequest(StrictModel):
+    expected_revision: int = Field(ge=0)
+
+
+class PatchApplicationResult(StrictModel):
+    patch_id: str
+    status: PatchStatus
+    files_changed: int = Field(ge=0)
+    applied_at: datetime | None
+    duration_ms: int = Field(ge=0)
+    error: str | None = None
+
+
+class ValidationResult(StrictModel):
+    patch_id: str
+    command: CommandRun | None
+    passed: bool
+    duration_ms: int = Field(ge=0)
+    detail: str
+
+
+class PatchWorkflowView(StrictModel):
+    session_id: str
+    status: PatchStatus
+    proposal: PatchProposal
+    validation: PatchValidationResult
+    application: PatchApplicationResult | None
+    test_result: ValidationResult | None
+    rollback_status: RollbackStatus
+    rollback_duration_ms: int | None = Field(default=None, ge=0)
+    updated_at: datetime
+
+
+class PatchGenerationResponse(StrictModel):
+    session: DebugSession
+    workflow: PatchWorkflowView
+
+
+class PatchActionResponse(StrictModel):
+    session: DebugSession
+    workflow: PatchWorkflowView

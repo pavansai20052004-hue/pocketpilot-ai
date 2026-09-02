@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "user_service.py", line 5, in get_user_name
+    return user["name"]
+TypeError: 'NoneType' object is not subscriptable

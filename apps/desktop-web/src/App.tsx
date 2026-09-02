@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { AgentEvent, AnalysisExecutionResponse, AnalysisRecord, CommandRun, ProviderHealth, SafeCommand, SessionTransitionResult, WorkspaceInfo } from '@pocketpilot/shared-types';
+import type { AgentEvent, AnalysisExecutionResponse, AnalysisRecord, CommandRun, DebugSession, PatchActionResponse, PatchGenerationResponse, PatchWorkflowView, ProviderHealth, SafeCommand, SessionTransitionResult, WorkspaceInfo } from '@pocketpilot/shared-types';
 
 const apiBaseUrl = import.meta.env.VITE_AGENT_HTTP_URL ?? 'http://127.0.0.1:8000';
 
@@ -17,6 +17,8 @@ export function App() {
   const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
   const [analysisEvents, setAnalysisEvents] = useState<ReadonlyArray<AgentEvent>>([]);
   const [provider, setProvider] = useState<ProviderHealth | null>(null);
+  const [debugSession, setDebugSession] = useState<DebugSession | null>(null);
+  const [patchWorkflow, setPatchWorkflow] = useState<PatchWorkflowView | null>(null);
 
   useEffect(() => {
     void request<ProviderHealth>('/api/v1/analysis/provider').then(setProvider).catch(() => setProvider(null));
@@ -67,7 +69,7 @@ export function App() {
       setError('Select a workspace and paste an error before starting analysis.');
       return;
     }
-    setBusyAction('analyze'); setError(null); setAnalysis(null); setAnalysisEvents([]);
+    setBusyAction('analyze'); setError(null); setAnalysis(null); setPatchWorkflow(null); setAnalysisEvents([]);
     let socket: WebSocket | null = null;
     try {
       const created = await request<SessionTransitionResult>('/api/v1/sessions', {
@@ -89,11 +91,65 @@ export function App() {
         body: JSON.stringify({ input_type: 'TEXT', raw_text: errorText.trim(), file_hint: fileHint.trim() || null, language_hint: languageHint.trim() || null, framework_hint: frameworkHint.trim() || null, expected_revision: captured.session.revision }),
       });
       setAnalysis(completed.analysis);
+      setDebugSession(completed.session);
     } catch (requestError) {
       setError(messageFrom(requestError));
     } finally {
       socket?.close(); setBusyAction(null);
     }
+  }
+
+  async function generateFix() {
+    if (debugSession === null) return;
+    setBusyAction('generate-patch'); setError(null);
+    try {
+      const generated = await request<PatchGenerationResponse>(`/api/v1/sessions/${debugSession.id}/patches/generate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected_revision: debugSession.revision }),
+      });
+      setDebugSession(generated.session); setPatchWorkflow(generated.workflow);
+    } catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
+  }
+
+  async function decidePatch(action: 'approve' | 'reject') {
+    if (debugSession === null || patchWorkflow === null) return;
+    setBusyAction(action); setError(null);
+    try {
+      const result = await request<PatchActionResponse>(`/api/v1/sessions/${debugSession.id}/patches/${patchWorkflow.proposal.id}/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected_revision: debugSession.revision }),
+      });
+      setDebugSession(result.session); setPatchWorkflow(result.workflow);
+    } catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
+  }
+
+  async function rollbackPatch() {
+    if (debugSession === null || patchWorkflow === null) return;
+    if (!window.confirm('Restore files to the state before this PocketPilot patch?')) return;
+    setBusyAction('rollback'); setError(null);
+    try {
+      const result = await request<PatchActionResponse>(`/api/v1/sessions/${debugSession.id}/patches/${patchWorkflow.proposal.id}/rollback`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected_revision: debugSession.revision }),
+      });
+      setDebugSession(result.session); setPatchWorkflow(result.workflow);
+    } catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
+  }
+
+  async function retryAnalysis() {
+    if (debugSession === null || debugSession.state !== 'FAILED' || !errorText.trim()) return;
+    setBusyAction('retry'); setError(null);
+    try {
+      const completed = await request<AnalysisExecutionResponse>(`/api/v1/sessions/${debugSession.id}/analyze`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input_type: 'TEXT', raw_text: errorText.trim(), file_hint: fileHint.trim() || null, language_hint: languageHint.trim() || null, framework_hint: frameworkHint.trim() || null, expected_revision: debugSession.revision }),
+      });
+      setAnalysis(completed.analysis); setDebugSession(completed.session); setPatchWorkflow(null);
+    } catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
   }
 
   return (
@@ -210,7 +266,8 @@ export function App() {
       )}
 
       {commandRun !== null && <CommandResult result={commandRun} />}
-      {analysis !== null && <AnalysisResultView analysis={analysis} />}
+      {analysis !== null && <AnalysisResultView analysis={analysis} busy={busyAction !== null} onGenerate={() => void generateFix()} />}
+      {patchWorkflow !== null && <PatchReview busyAction={busyAction} onApprove={() => void decidePatch('approve')} onReject={() => void decidePatch('reject')} onRetry={() => void retryAnalysis()} onRollback={() => void rollbackPatch()} workflow={patchWorkflow} />}
       <footer><span>POCKETPILOT / DESKTOP AGENT 0.1.0</span><span>shell=False · bounded output · explicit approval</span></footer>
     </main>
   );
@@ -249,7 +306,7 @@ function OutputBlock({ label, value }: { label: string; value: string }) {
   return <div className="output-block"><span>{label}</span><pre>{value || '(empty)'}</pre></div>;
 }
 
-function AnalysisResultView({ analysis }: { analysis: AnalysisRecord }) {
+function AnalysisResultView({ analysis, busy, onGenerate }: { analysis: AnalysisRecord; busy: boolean; onGenerate: () => void }) {
   const result = analysis.result;
   return (
     <section className="analysis-result">
@@ -271,7 +328,29 @@ function AnalysisResultView({ analysis }: { analysis: AnalysisRecord }) {
       </div>
       {result.warnings.length > 0 && <ul className="analysis-warnings">{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
       <div className="repair-strategy"><span className="kicker">REPAIR STRATEGY</span><p>{result.repair_strategy}</p></div>
-      <p className="analysis-boundary">Diagnosis only. Patch generation and application are intentionally unavailable in this milestone.</p>
+      <div className="analysis-boundary"><button className="primary-button patch-generate" disabled={busy} onClick={onGenerate} type="button">{busy ? 'WORKING…' : 'GENERATE FIX'}</button><span>Generation creates an untrusted proposal only. No file changes before approval.</span></div>
+    </section>
+  );
+}
+
+function PatchReview({ busyAction, onApprove, onReject, onRetry, onRollback, workflow }: { busyAction: string | null; onApprove: () => void; onReject: () => void; onRetry: () => void; onRollback: () => void; workflow: PatchWorkflowView }) {
+  const proposal = workflow.proposal;
+  const awaiting = workflow.status === 'AWAITING_APPROVAL';
+  const rollbackAvailable = workflow.rollback_status === 'AVAILABLE' && ['VERIFIED', 'FAILED'].includes(workflow.status);
+  return (
+    <section className="patch-review">
+      <div className="result-heading"><div><span className="kicker">PROPOSED FIX</span><h2>{proposal.title}</h2></div><span className={`risk risk-${workflow.validation.risk.toLowerCase()}`}>{workflow.validation.risk} RISK</span></div>
+      <p className="root-cause">{proposal.summary}</p>
+      <div className="result-metrics"><Metric label="files" value={proposal.files.length.toString()} /><Metric label="additions" value={`+${workflow.validation.additions}`} /><Metric label="deletions" value={`-${workflow.validation.deletions}`} /><Metric label="status" value={workflow.status} /></div>
+      {proposal.files.map((file) => <article className="diff-card" key={file.relative_path}><div><code>{file.relative_path}</code><span>+{file.additions} / -{file.deletions}</span></div><pre>{file.unified_diff.split('\n').map((line, index) => <span className={line.startsWith('+') ? 'diff-add' : line.startsWith('-') ? 'diff-remove' : ''} key={`${index}-${line}`}>{line || ' '}{'\n'}</span>)}</pre><p>{file.explanation}</p></article>)}
+      <div className="patch-explanation"><span className="kicker">EXPECTED EFFECT</span><p>{proposal.expected_effect}</p></div>
+      {workflow.test_result !== null && <div className={`verification ${workflow.test_result.passed ? 'verification-pass' : 'verification-fail'}`}><strong>{workflow.test_result.passed ? '✓ FIX VERIFIED' : '✕ FIX NOT VERIFIED'}</strong><span>{workflow.test_result.command?.display_command ?? 'No safe validation command'} · {workflow.test_result.duration_ms} ms</span></div>}
+      {workflow.status === 'ROLLED_BACK' && <div className="verification"><strong>ROLLED BACK</strong><span>Original files restored successfully.</span></div>}
+      <div className="patch-actions">
+        {awaiting && <><button className="primary-button" disabled={busyAction !== null} onClick={onApprove} type="button">{busyAction === 'approve' ? 'APPLYING & TESTING…' : 'APPROVE FIX'}</button><button className="secondary-button" disabled={busyAction !== null} onClick={onReject} type="button">REJECT</button></>}
+        {['FAILED', 'REJECTED'].includes(workflow.status) && <button className="secondary-button" disabled={busyAction !== null} onClick={onRetry} type="button">{busyAction === 'retry' ? 'ANALYZING…' : 'TRY ANOTHER FIX'}</button>}
+        {rollbackAvailable && <button className="secondary-button" disabled={busyAction !== null} onClick={onRollback} type="button">{busyAction === 'rollback' ? 'RESTORING…' : 'UNDO FIX'}</button>}
+      </div>
     </section>
   );
 }

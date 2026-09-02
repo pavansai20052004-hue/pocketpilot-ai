@@ -69,6 +69,10 @@ class DebugStateMachine:
         if target is DebugState.FAILED:
             if source is DebugState.ANALYZING:
                 return AgentEventName.ANALYSIS_FAILED
+            if source is DebugState.AWAITING_APPROVAL:
+                return AgentEventName.PATCH_REJECTED
+            if source is DebugState.PATCH_APPLYING:
+                return AgentEventName.PATCH_APPLY_FAILED
             return (
                 AgentEventName.TESTS_FAILED
                 if source is DebugState.TESTING
@@ -79,7 +83,7 @@ class DebugStateMachine:
             DebugState.ANALYZING: AgentEventName.ANALYSIS_STARTED,
             DebugState.ROOT_CAUSE_FOUND: AgentEventName.ROOT_CAUSE_FOUND,
             DebugState.PATCH_GENERATED: AgentEventName.PATCH_GENERATED,
-            DebugState.AWAITING_APPROVAL: AgentEventName.APPROVAL_REQUESTED,
+            DebugState.AWAITING_APPROVAL: AgentEventName.PATCH_AWAITING_APPROVAL,
             DebugState.PATCH_APPLYING: AgentEventName.PATCH_APPROVED,
             DebugState.TESTING: AgentEventName.TESTS_STARTED,
             DebugState.SUCCESS: AgentEventName.TESTS_PASSED,

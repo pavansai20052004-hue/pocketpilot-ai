@@ -24,6 +24,7 @@ describe('shared contracts', () => {
     expect(AGENT_EVENT_NAMES).toContain('tests_passed');
     expect(AGENT_EVENT_NAMES).toContain('approval_requested');
     expect(AGENT_EVENT_NAMES).toContain('analysis_provider_started');
+    expect(AGENT_EVENT_NAMES).toContain('patch_awaiting_approval');
   });
 
   it('accepts a typed system status', () => {

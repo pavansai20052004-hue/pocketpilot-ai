@@ -4,7 +4,7 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 3 local analysis. Secure repository actions, persistent sessions, bounded local-AI context, validated root-cause results, and reconnect-safe progress events are implemented. Patch generation, OCR, voice, and iQOO Office Kit are not implemented yet.
+> Current phase: Milestone 4 safe repair. PocketPilot now produces validated unified-diff proposals, requires revision-bound human approval, applies changes atomically, runs an existing allowlisted validation command, and supports conflict-safe rollback. OCR, voice, and iQOO Office Kit are not implemented yet.
 
 ## Foundation architecture
 
@@ -52,7 +52,7 @@ npm run dev:desktop
 
 Open the dashboard URL printed by Vite. Expo prints the Android QR code and local development URLs. The FastAPI health endpoint is `http://127.0.0.1:8000/health`.
 
-In the dashboard, enter one explicit repository root and choose **Inspect Project**. Paste an error into **Local Root-Cause Analysis** to run the read-only analysis pipeline. The default `mock` provider is clearly labeled and deterministic. To use an already-installed Ollama model, set `POCKETPILOT_LLM_PROVIDER=ollama` and configure the model name; PocketPilot never downloads a model.
+In the dashboard, enter one explicit repository root and choose **Inspect Project**. Paste an error into **Local Root-Cause Analysis**, review the resulting diagnosis, then choose **Generate Fix**. Generation does not write files. The dashboard shows the exact diff and deterministic risk rating before **Approve Fix** can apply it and run a registry-owned validation command. **Undo Fix** is available only while patched hashes still match.
 
 ## Desktop-agent API
 
@@ -78,6 +78,11 @@ Session routes:
 | `GET` | `/api/v1/analysis/provider` | Check local provider/model availability |
 | `POST` | `/api/v1/sessions/{id}/analyze` | Parse, collect bounded context, and analyze text locally |
 | `GET` | `/api/v1/sessions/{id}/analysis` | Retrieve the persisted validated result |
+| `POST` | `/api/v1/sessions/{id}/patches/generate` | Generate and validate an untrusted diff proposal |
+| `GET` | `/api/v1/sessions/{id}/patches/current` | Recover proposal, approval, test, and rollback status |
+| `POST` | `/api/v1/sessions/{id}/patches/{patch_id}/approve` | Approve the exact revision-bound patch, apply, and verify |
+| `POST` | `/api/v1/sessions/{id}/patches/{patch_id}/reject` | Reject without modifying files |
+| `POST` | `/api/v1/sessions/{id}/patches/{patch_id}/rollback` | Restore the private snapshot when no conflict exists |
 
 Session history is stored locally in `.pocketpilot/sessions.db` by default and is ignored by Git. Override it with `POCKETPILOT_SESSION_DATABASE_PATH`.
 
@@ -115,8 +120,10 @@ docs/              Architecture and hackathon documentation
 - Selecting and scanning never executes a command. Each run requires a separate explicit dashboard action.
 - Analysis receives no process runner or write API. It reads only security-approved, scored line windows and cannot trigger commands or mutations.
 - Repository text is delimited as untrusted data; model references are validated against supplied context before persistence.
+- AI patch output cannot write files. Only `PatchEngine` receives approved validated diffs, and every target is rechecked against its original SHA-256 immediately before replacement.
+- Rollback refuses to overwrite files changed after PocketPilot's patch.
 
-See [the local AI guide](docs/local-ai.md) and [the full security model](docs/security-model.md) for provider setup, trust boundaries, limits, and residual risks.
+See [the local AI guide](docs/local-ai.md), [patch-engine guide](docs/patch-engine.md), and [security model](docs/security-model.md).
 
 ## License
 

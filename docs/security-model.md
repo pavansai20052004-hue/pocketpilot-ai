@@ -89,4 +89,14 @@ System instructions are sent separately from clearly delimited error and reposit
 
 Analysis and execution are separate dependency graphs. `AnalysisService` has no `SafeProcessRunner`, command registry, patch service, or filesystem write interface. A provider response can only become a validated `AnalysisResult`; it cannot enter argv, select a safe command, or mutate a file. Ollama traffic targets only the configured local URL. No cloud provider, telemetry, download, or model-pull path exists.
 
-Raw error text and source windows are used transiently and are not stored in event logs or the analysis table. Concise parsed facts, validated conclusions, context metadata, and timings are local SQLite records. The dashboard explicitly labels mock mode and exposes no patch action.
+Raw error text and source windows are used transiently and are not stored in event logs or the analysis table. Concise parsed facts, validated conclusions, context metadata, and timings are local SQLite records. The dashboard explicitly labels mock mode.
+
+## Human-approved patch boundary
+
+AI output is an untrusted proposal. The provider cannot access `WorkspaceService`, `SafeProcessRunner`, or filesystem write methods. A strict parser accepts only existing-file unified diffs and rejects absolute/traversal paths, `/dev/null`, create/delete/rename metadata, binary patches, malformed counts, multi-target content, and non-matching hunks.
+
+Validation reuses the selected-workspace resolver and scanner classification. Every file must have been supplied to the provider context, remain indexed and eligible, avoid secrets/generated content/lockfiles, and match a captured SHA-256. Explainable risk rules block excessive breadth and additions of shell/process/eval behavior. HIGH and BLOCKED patches cannot reach approval.
+
+Approval names both the patch ID and exact session revision. Immediately before writing, every hash and hunk is checked again. The engine constructs all outputs in memory, persists PocketPilot-owned originals, flushes same-directory temporary files, and atomically replaces targets. A multi-file failure restores already-replaced originals.
+
+Tests run only after apply and only by selecting an immutable command already created by `SafeCommandRegistry`; no provider string enters argv. Rollback checks the current bytes against the stored patched hash before restoring. Any later developer edit produces `ROLLBACK_CONFLICT` and remains untouched. Event logs contain file names/status metadata, never source or rollback bodies.

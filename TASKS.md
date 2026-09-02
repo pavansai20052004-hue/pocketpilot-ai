@@ -7,8 +7,9 @@ This is the execution checklist for the hackathon prototype. A milestone is comp
 - **Complete:** Phase A / Milestone 0 — architecture and scaffolding
 - **Complete:** Milestone 1 — desktop agent, repository scanner, and safe test runner
 - **Complete:** Milestone 2 — debug session API and controlled state machine
-- **Complete, awaiting approval:** Milestone 3 — local analysis provider
-- **Next after approval:** Milestone 4 — patch lifecycle
+- **Complete:** Milestone 3 — local analysis provider
+- **Complete, awaiting approval:** Milestone 4 — patch lifecycle
+- **Next after approval:** Milestone 5 — mobile bridge and core UI
 
 ## Dependency path
 
@@ -119,11 +120,27 @@ Verification evidence (2026-09-02):
 
 Depends on: M2, M3.
 
-- Unified diff proposal, validation, approval gate, application, and rollback.
-- Workspace boundary and file-type enforcement.
-- Patch-engine and rollback tests.
+- [x] Structured Mock/Ollama patch providers and centralized patch prompt.
+- [x] Strict unified-diff parser with in-memory dry run.
+- [x] Workspace, sensitive-file, supplied-context, hash, size, and risk validation.
+- [x] Revision- and patch-ID-bound approval/rejection gate.
+- [x] Atomic multi-file application and private rollback snapshots.
+- [x] Patched-hash rollback conflict protection.
+- [x] Deterministic allowlisted validation-command selection and real execution.
+- [x] Durable proposal, approval, application, test, and rollback state.
+- [x] Reconnect snapshot/event coverage and desktop diff/approval/rollback UI.
+- [x] Temporary-copy Python repair fixture and mandatory real end-to-end test.
 
 Acceptance criteria: no write occurs before explicit approval; out-of-root paths and malformed diffs are rejected; rollback restores exact prior content.
+
+Verification evidence (2026-09-02):
+
+- `python -m ruff check services/agent`: passed.
+- `python -m pytest services/agent -ra`: 85 passed, 4 skipped (two explicitly disabled Ollama integration tests and two permission-dependent Windows symlink tests).
+- `npm run check`: ESLint and strict type checks passed; 8 Vitest tests passed; desktop production build and Expo web export passed.
+- Real temporary-copy smoke: safe pytest failed with exit 1 before repair; the MEDIUM-risk one-file proposal left source unchanged before approval; approved patch passed the same `python.exe -m pytest -q`; session reached `SUCCESS`; persisted status recovered as `VERIFIED`; rollback restored exact original bytes and the test failed again.
+- Measured smoke timings: initial failing test 736 ms; generation 0 ms; patch validation 1 ms; atomic apply 3 ms; post-apply verification 566 ms; rollback 3 ms.
+- Ollama patch smoke skipped because `127.0.0.1:11434` refused the connection; no model was installed or pulled.
 
 ### M5 — Mobile bridge and core UI (P0)
 

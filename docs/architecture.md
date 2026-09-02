@@ -160,3 +160,18 @@ TEXT error → ErrorParser → RepositoryContextService → AnalysisPromptBuilde
 The model response is untrusted. Pydantic validates shape and confidence; a second validator removes files and lines absent from the supplied context, downgrades confidence, and records warnings. One provider call may be used to reformat malformed JSON. This is not a debug-session retry and cannot loop.
 
 Analysis progress is appended as metadata-only events without changing the optimistic workflow revision. State changes still use the existing transition service: `CAPTURED → ANALYZING → ROOT_CAUSE_FOUND`, or `ANALYZING → FAILED`. A per-session in-flight claim plus revision validation prevents duplicate provider work.
+
+## Milestone 4 patch lifecycle
+
+```text
+local provider → UNTRUSTED structured unified diff → PatchValidator dry run
+  → persisted proposal → explicit patch-ID + revision approval → PatchEngine
+  → existing SafeCommandRegistry/SafeProcessRunner → SUCCESS | FAILED
+  → optional patched-hash-guarded rollback
+```
+
+`PatchProvider` has no workspace or write capability. `UnifiedDiffParser` rejects create/delete/rename/binary/multi-target/traversal shapes and applies hunks to memory. `PatchValidator` proves every target was supplied as analysis context, remains an eligible indexed file, resolves under the workspace, matches its base hash, applies cleanly, and passes explainable risk limits.
+
+Approval transitions the exact current proposal into `PATCH_APPLYING`. `PatchEngine` revalidates hashes, persists original content privately, writes same-directory temporary files, flushes them, and uses atomic replacement. Only after application does `ValidationCommandSelector` choose an existing registry command in test → typecheck → build → lint order. Model text never becomes argv.
+
+Patch workflow JSON and private rollback data share the session SQLite database. A stored `APPLYING` operation becomes `RECOVERY_REQUIRED` after process reconstruction. WebSocket snapshots include the current public patch view; source and rollback contents remain excluded.

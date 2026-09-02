@@ -11,6 +11,11 @@ from pocketpilot_agent.analysis_store import AnalysisStore
 from pocketpilot_agent.api import router as api_router
 from pocketpilot_agent.config import Settings, get_settings
 from pocketpilot_agent.event_broker import SessionEventBroker
+from pocketpilot_agent.patch_api import router as patch_router
+from pocketpilot_agent.patch_provider import MockPatchProvider, OllamaPatchProvider
+from pocketpilot_agent.patch_service import PatchService
+from pocketpilot_agent.patch_store import PatchStore
+from pocketpilot_agent.patch_validation import PatchValidator
 from pocketpilot_agent.repository_context import RepositoryContextService
 from pocketpilot_agent.schemas import ComponentStatus, HealthResponse, SystemStatus
 from pocketpilot_agent.session_service import DebugSessionService
@@ -54,6 +59,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         store=AnalysisStore(active_settings.session_database_path),
         timeout_seconds=active_settings.ollama_timeout_seconds,
     )
+    patch_provider = (
+        MockPatchProvider()
+        if active_settings.llm_provider == "mock"
+        else OllamaPatchProvider(provider)
+    )
+    application.state.patch_service = PatchService(
+        sessions=session_service,
+        events=application.state.session_event_broker,
+        workspace=workspace_service,
+        analyses=application.state.analysis_service.store,
+        store=PatchStore(active_settings.session_database_path),
+        provider=patch_provider,
+        validator=PatchValidator(
+            max_files=active_settings.patch_max_files,
+            max_additions=active_settings.patch_max_additions,
+            max_change_ratio=active_settings.patch_max_change_ratio,
+        ),
+        timeout_seconds=active_settings.ollama_timeout_seconds,
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=active_settings.allowed_desktop_origins,
@@ -64,6 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(api_router)
     application.include_router(sessions_router)
     application.include_router(analysis_router)
+    application.include_router(patch_router)
 
     @application.get("/health", response_model=HealthResponse, tags=["system"])
     async def health() -> HealthResponse:

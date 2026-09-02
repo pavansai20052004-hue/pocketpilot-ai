@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     analysis_max_context_files: int = 6
     analysis_max_context_chars: int = 24_000
     analysis_max_lines_per_file: int = 80
+    patch_max_files: int = 5
+    patch_max_additions: int = 100
+    patch_max_change_ratio: float = 0.6
 
     @property
     def allowed_desktop_origins(self) -> list[str]:

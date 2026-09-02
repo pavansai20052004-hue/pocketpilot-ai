@@ -31,15 +31,25 @@ export const AGENT_EVENT_NAMES = [
   'analysis_failed',
   'root_cause_found',
   'patch_generated',
+  'patch_generation_started',
+  'patch_validation_started',
+  'patch_validation_completed',
+  'patch_awaiting_approval',
   'approval_requested',
   'patch_approved',
+  'patch_rejected',
+  'patch_apply_started',
+  'patch_file_applied',
   'patch_applied',
+  'patch_apply_failed',
   'tests_started',
   'tests_passed',
   'tests_failed',
   'session_failed',
   'retry_started',
   'rollback_completed',
+  'rollback_started',
+  'rollback_failed',
 ] as const;
 
 export type AgentEventName = (typeof AGENT_EVENT_NAMES)[number];
@@ -95,6 +105,7 @@ export type SessionWebSocketMessage =
       readonly type: 'snapshot';
       readonly session: DebugSession;
       readonly events: ReadonlyArray<AgentEvent>;
+      readonly patch?: PatchWorkflowView | null;
     }
   | {
       readonly type: 'event';
@@ -256,3 +267,15 @@ export interface AnalysisRecord {
 export interface AnalysisExecutionResponse { readonly session: DebugSession; readonly analysis: AnalysisRecord; }
 export interface AnalyzeSessionRequest { readonly input_type: ErrorInputType; readonly raw_text: string; readonly file_hint?: string | null; readonly language_hint?: string | null; readonly expected_revision: number; }
 export interface ProviderHealth { readonly provider: string; readonly model: string; readonly status: AnalysisStatus | null; readonly available: boolean; readonly model_available: boolean; readonly latency_ms: number; readonly detail: string; }
+
+export type PatchRisk = 'LOW' | 'MEDIUM' | 'HIGH' | 'BLOCKED';
+export type PatchStatus = 'PROPOSED' | 'AWAITING_APPROVAL' | 'REJECTED' | 'APPROVED' | 'APPLYING' | 'APPLIED' | 'VERIFIED' | 'FAILED' | 'ROLLED_BACK' | 'RECOVERY_REQUIRED';
+export type RollbackStatus = 'AVAILABLE' | 'COMPLETED' | 'CONFLICT' | 'UNAVAILABLE';
+export interface PatchFileChange { readonly relative_path: string; readonly change_type: 'MODIFY'; readonly unified_diff: string; readonly explanation: string; readonly original_sha256: string; readonly additions: number; readonly deletions: number; }
+export interface PatchValidationResult { readonly valid: boolean; readonly risk: PatchRisk; readonly errors: ReadonlyArray<string>; readonly warnings: ReadonlyArray<string>; readonly files_changed: number; readonly additions: number; readonly deletions: number; readonly duration_ms: number; }
+export interface PatchProposal { readonly id: string; readonly session_id: string; readonly title: string; readonly summary: string; readonly rationale: string; readonly confidence: AnalysisConfidence; readonly files: ReadonlyArray<PatchFileChange>; readonly expected_effect: string; readonly risks: ReadonlyArray<string>; readonly validation_notes: ReadonlyArray<string>; readonly created_at: string; readonly provider: string; readonly model: string; readonly retry_number: number; readonly generation_duration_ms: number; }
+export interface PatchApplicationResult { readonly patch_id: string; readonly status: PatchStatus; readonly files_changed: number; readonly applied_at: string | null; readonly duration_ms: number; readonly error: string | null; }
+export interface ValidationResult { readonly patch_id: string; readonly command: CommandRun | null; readonly passed: boolean; readonly duration_ms: number; readonly detail: string; }
+export interface PatchWorkflowView { readonly session_id: string; readonly status: PatchStatus; readonly proposal: PatchProposal; readonly validation: PatchValidationResult; readonly application: PatchApplicationResult | null; readonly test_result: ValidationResult | null; readonly rollback_status: RollbackStatus; readonly rollback_duration_ms: number | null; readonly updated_at: string; }
+export interface PatchGenerationResponse { readonly session: DebugSession; readonly workflow: PatchWorkflowView; }
+export interface PatchActionResponse { readonly session: DebugSession; readonly workflow: PatchWorkflowView; }
