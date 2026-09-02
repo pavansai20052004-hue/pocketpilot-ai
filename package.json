@@ -1,0 +1,29 @@
+{
+  "name": "pocketpilot-ai",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev:mobile": "npm run start --workspace=@pocketpilot/mobile",
+    "dev:desktop": "npm run dev --workspace=@pocketpilot/desktop-web",
+    "build": "npm run build --workspace=@pocketpilot/shared-types && npm run build --workspace=@pocketpilot/desktop-web && npm run export:web --workspace=@pocketpilot/mobile",
+    "typecheck": "npm run build --workspace=@pocketpilot/shared-types && npm run typecheck --workspaces --if-present",
+    "lint": "eslint apps packages",
+    "test": "npm run test --workspaces --if-present",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.0.0",
+    "globals": "17.12.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.69.0"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@pocketpilot/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "prestart": "npm run build --workspace=@pocketpilot/shared-types",
+    "start": "expo start",
+    "android": "expo start --android",
+    "web": "expo start --web",
+    "export:web": "expo export --platform web --output-dir dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "57.0.15",
+    "@pocketpilot/shared-types": "0.1.0",
+    "expo": "57.0.19",
+    "expo-status-bar": "57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-web": "0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "babel-preset-expo": "57.0.10",
+    "typescript": "6.0.3"
+  }
+}
