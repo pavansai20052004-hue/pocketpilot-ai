@@ -16,16 +16,20 @@ export type DebugState = (typeof DEBUG_STATES)[number];
 
 export const AGENT_EVENT_NAMES = [
   'session_started',
+  'error_captured',
   'image_received',
   'ocr_completed',
   'analysis_started',
   'root_cause_found',
   'patch_generated',
+  'approval_requested',
   'patch_approved',
   'patch_applied',
   'tests_started',
   'tests_passed',
   'tests_failed',
+  'session_failed',
+  'retry_started',
   'rollback_completed',
 ] as const;
 
@@ -44,13 +48,58 @@ export interface SystemStatus {
   };
 }
 
-export interface AgentEvent<TPayload = Readonly<Record<string, unknown>>> {
+export interface AgentEvent {
   readonly id: string;
-  readonly sessionId: string;
+  readonly session_id: string;
+  readonly sequence: number;
   readonly name: AgentEventName;
   readonly state: DebugState;
-  readonly occurredAt: string;
-  readonly payload: TPayload;
+  readonly summary: string;
+  readonly occurred_at: string;
+}
+
+export interface DebugSession {
+  readonly id: string;
+  readonly title: string;
+  readonly state: DebugState;
+  readonly revision: number;
+  readonly retry_count: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly last_event_sequence: number;
+}
+
+export interface SessionTransitionResult {
+  readonly session: DebugSession;
+  readonly event: AgentEvent;
+}
+
+export interface SessionEventList {
+  readonly session_id: string;
+  readonly current_state: DebugState;
+  readonly current_revision: number;
+  readonly events: ReadonlyArray<AgentEvent>;
+}
+
+export type SessionWebSocketMessage =
+  | {
+      readonly type: 'snapshot';
+      readonly session: DebugSession;
+      readonly events: ReadonlyArray<AgentEvent>;
+    }
+  | {
+      readonly type: 'event';
+      readonly event: AgentEvent;
+    };
+
+export interface CreateDebugSessionRequest {
+  readonly title: string;
+}
+
+export interface TransitionDebugSessionRequest {
+  readonly target_state: DebugState;
+  readonly expected_revision: number;
+  readonly summary: string;
 }
 
 export const COMMAND_STATUSES = [

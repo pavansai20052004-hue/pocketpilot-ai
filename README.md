@@ -4,7 +4,7 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 1 desktop-agent core. Secure metadata inspection and explicit allowlisted command execution are implemented. AI debugging, patching, OCR, voice, WebSockets, and iQOO Office Kit are not implemented yet.
+> Current phase: Milestone 2 session control plane. Secure repository actions, persistent debug sessions, validated workflow transitions, and reconnect-safe WebSocket events are implemented. AI debugging, patching, OCR, voice, and iQOO Office Kit are not implemented yet.
 
 ## Foundation architecture
 
@@ -64,6 +64,19 @@ In the dashboard, enter one explicit repository root and choose **Inspect Projec
 | `GET` | `/api/v1/workspaces/current/commands` | Return applicable allowlisted actions |
 | `POST` | `/api/v1/commands/{command_id}/run` | Explicitly execute one detected action |
 | `GET` | `/api/v1/commands/runs/{run_id}` | Retrieve a completed structured result |
+
+Session routes:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/sessions` | Create an `IDLE` session and its first event |
+| `GET` | `/api/v1/sessions` | List recent local sessions |
+| `GET` | `/api/v1/sessions/{id}` | Recover current state and revision |
+| `POST` | `/api/v1/sessions/{id}/transitions` | Request one revision-checked legal transition |
+| `GET` | `/api/v1/sessions/{id}/events` | Recover sequenced events after a cursor |
+| WebSocket | `/api/v1/sessions/{id}/events/ws` | Receive a snapshot, missed events, then live events |
+
+Session history is stored locally in `.pocketpilot/sessions.db` by default and is ignored by Git. Override it with `POCKETPILOT_SESSION_DATABASE_PATH`.
 
 ## Verify
 

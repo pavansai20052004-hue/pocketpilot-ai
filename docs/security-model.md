@@ -72,3 +72,11 @@ Automated tests attempt nonexistent roots, `..` traversal, absolute child paths,
 - File content retrieval is intentionally absent.
 - Reparse/symlink tests may skip on Windows hosts that do not permit creating test links; production scanning still checks the reparse attribute.
 - Package-manager scripts are repository code and may perform arbitrary behavior despite having an allowed name. Explicit user approval and repository trust are required.
+
+## Session and event integrity
+
+Session state is stored locally in SQLite. Every mutation requires the exact current revision, follows the central transition table, increments the revision and event sequence once, and commits the session/event pair atomically. Invalid, stale, or retry-exhausted transitions return a conflict and append nothing.
+
+WebSockets do not authorize or mutate state. They publish database-backed snapshots and sequenced events; reconnecting clients recover from SQLite after the last acknowledged sequence. The in-process broker caps each subscriber queue at 100 events and may drop transient delivery under pressure because persistent cursor recovery remains authoritative.
+
+The current event summaries are user/agent-supplied bounded text. They must not contain secrets or source bodies; richer redacted debug payloads will require explicit schemas in later milestones.

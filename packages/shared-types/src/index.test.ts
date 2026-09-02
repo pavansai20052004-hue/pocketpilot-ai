@@ -5,6 +5,7 @@ import {
   COMMAND_STATUSES,
   DEBUG_STATES,
   type SafeCommand,
+  type SessionWebSocketMessage,
   type SystemStatus,
 } from './index.js';
 
@@ -21,6 +22,7 @@ describe('shared contracts', () => {
   it('publishes the required observability events without duplicates', () => {
     expect(new Set(AGENT_EVENT_NAMES).size).toBe(AGENT_EVENT_NAMES.length);
     expect(AGENT_EVENT_NAMES).toContain('tests_passed');
+    expect(AGENT_EVENT_NAMES).toContain('approval_requested');
   });
 
   it('accepts a typed system status', () => {
@@ -55,5 +57,23 @@ describe('shared contracts', () => {
       evidence: "safe 'test' script in package.json",
     };
     expect(command.args).toEqual(['run', 'test']);
+  });
+
+  it('models reconnect snapshots separately from incremental events', () => {
+    const message: SessionWebSocketMessage = {
+      type: 'snapshot',
+      session: {
+        id: 'session-1',
+        title: 'Fixture',
+        state: 'IDLE',
+        revision: 0,
+        retry_count: 0,
+        created_at: '2026-09-02T00:00:00Z',
+        updated_at: '2026-09-02T00:00:00Z',
+        last_event_sequence: 1,
+      },
+      events: [],
+    };
+    expect(message.type).toBe('snapshot');
   });
 });

@@ -5,8 +5,9 @@ This is the execution checklist for the hackathon prototype. A milestone is comp
 ## Current status
 
 - **Complete:** Phase A / Milestone 0 — architecture and scaffolding
-- **Complete, awaiting approval:** Milestone 1 — desktop agent, repository scanner, and safe test runner
-- **Next after approval:** Milestone 2 — debug session API and controlled state machine
+- **Complete:** Milestone 1 — desktop agent, repository scanner, and safe test runner
+- **Complete, awaiting approval:** Milestone 2 — debug session API and controlled state machine
+- **Next after approval:** Milestone 3 — local analysis provider
 
 ## Dependency path
 
@@ -68,11 +69,24 @@ Verification evidence (2026-09-02):
 
 Depends on: M1.
 
-- Typed session/event schemas and persistent local event history.
-- Controlled workflow transitions and WebSocket event stream.
-- API and state-transition tests.
+- [x] Typed Python and TypeScript session/event contracts.
+- [x] SQLite-backed local sessions and append-only sequenced event history.
+- [x] Central transition table with optimistic revisions and two-retry limit.
+- [x] Versioned session creation, lookup, listing, transition, and event APIs.
+- [x] Reconnect-safe WebSocket snapshot, missed-event recovery, and live fan-out.
+- [x] State-machine, persistence, HTTP, validation, and WebSocket tests.
+- [x] Final full-suite verification and persistence/WebSocket smoke test.
+- [x] Final diff review and separate milestone commit.
 
 Acceptance criteria: invalid transitions fail safely; reconnecting clients can recover current state; every transition emits a structured event.
+
+Verification evidence (2026-09-02):
+
+- `npm run check`: ESLint and strict type checks passed; 8 Vitest tests passed; Vite production build and Expo web export passed.
+- `python -m ruff check services/agent`: passed.
+- `python -m pytest services/agent`: 49 passed, 2 permission-dependent symlink tests skipped.
+- Live API/WebSocket smoke: created `IDLE` revision 0, received snapshot sequence 1, transitioned to `CAPTURED` revision 1, and received live `error_captured` sequence 2.
+- Persistence smoke: after a FastAPI restart, SQLite restored the same session, revision, state, and both ordered events.
 
 ### M3 — Local analysis provider (P0)
 

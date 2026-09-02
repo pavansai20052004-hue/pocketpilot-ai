@@ -5,7 +5,7 @@ This document maps the product strategy to evidence we intend to demonstrate. On
 | Judging signal | Planned PocketPilot evidence | Delivery milestone | Current status |
 | --- | --- | --- | --- |
 | Product quality | Phone-first approval flow, readable diff, explicit progress, rollback, polished success state | M4–M10 | Planned |
-| Technical depth | Typed state machine, bounded context retrieval, provider abstraction, validated unified diffs, event stream | M2–M4 | Planned |
+| Technical depth | Typed state machine, persistent sequenced events, reconnect recovery, bounded context retrieval, provider abstraction, validated unified diffs | M2–M4 | M2 state/event control plane implemented |
 | Creative smartphone usage | Camera-led error capture, editable device OCR, constrained voice actions, phone approval | M5, M7, M8 | Planned |
 | AI / local open source | Configurable Ollama coding model, structured outputs, deterministic offline fallback clearly disclosed | M3 | Planned |
 | Phone ↔ laptop workflow | Replaceable `DeviceBridge`, local Wi-Fi WebSocket, reconnect recovery, live event timeline | M2, M5 | Planned |

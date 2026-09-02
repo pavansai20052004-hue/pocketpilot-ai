@@ -125,3 +125,22 @@ The desktop-agent core now follows a narrow synchronous request path:
 FastAPI Pydantic models in `services/agent/src/pocketpilot_agent/models.py` and TypeScript interfaces in `packages/shared-types/src/index.ts` intentionally use the same JSON field names and enum values. They are manually synchronized in Milestone 1; schema generation is deferred until the API surface is large enough to justify it.
 
 Detailed threat assumptions and residual risks are recorded in [security-model.md](security-model.md).
+
+## Milestone 2 session control plane
+
+Debug sessions are independent from workspace scanning and command execution. `DebugSessionService` applies one state transition under a process lock, validates the caller's expected revision, and writes the updated session plus exactly one append-only event in a single SQLite transaction.
+
+```text
+HTTP transition request
+  → expected revision check
+  → DebugStateMachine decision
+  → SQLite session + event transaction
+  → in-process event broker
+  → subscribed WebSocket clients
+```
+
+SQLite is the source of truth; WebSocket queues are only a delivery optimization. A reconnecting client supplies its last sequence and receives a current session snapshot plus all later stored events before live delivery. Queue overflow can therefore drop a transient notification without losing recoverability.
+
+The session API cannot skip workflow states. The transition table permits the golden path, failure exits, rollback from applied outcomes, and at most two `FAILED → ANALYZING` retries. Optimistic session revisions turn stale concurrent requests into HTTP 409 responses without writing an event.
+
+Milestone 2 deliberately stores only session titles, states, summaries, revisions, and timestamps. Error bodies, source context, AI output, patch data, and command output are not part of this database yet.

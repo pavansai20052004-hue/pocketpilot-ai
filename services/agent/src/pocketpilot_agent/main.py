@@ -6,7 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pocketpilot_agent import __version__
 from pocketpilot_agent.api import router as api_router
 from pocketpilot_agent.config import Settings, get_settings
+from pocketpilot_agent.event_broker import SessionEventBroker
 from pocketpilot_agent.schemas import ComponentStatus, HealthResponse, SystemStatus
+from pocketpilot_agent.session_service import DebugSessionService
+from pocketpilot_agent.session_store import SessionStore
+from pocketpilot_agent.sessions_api import router as sessions_router
 from pocketpilot_agent.workspace import WorkspaceService
 
 
@@ -23,6 +27,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     workspace_service = WorkspaceService(active_settings)
     application.state.workspace_service = workspace_service
+    application.state.debug_session_service = DebugSessionService(
+        SessionStore(active_settings.session_database_path)
+    )
+    application.state.session_event_broker = SessionEventBroker()
     application.add_middleware(
         CORSMiddleware,
         allow_origins=active_settings.allowed_desktop_origins,
@@ -31,6 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Content-Type"],
     )
     application.include_router(api_router)
+    application.include_router(sessions_router)
 
     @application.get("/health", response_model=HealthResponse, tags=["system"])
     async def health() -> HealthResponse:

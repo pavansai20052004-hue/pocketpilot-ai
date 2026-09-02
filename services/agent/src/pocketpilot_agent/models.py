@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class StrictModel(BaseModel):
@@ -43,6 +43,39 @@ class CommandCategory(StrEnum):
     BUILD = "build"
     TYPECHECK = "typecheck"
     LINT = "lint"
+
+
+class DebugState(StrEnum):
+    IDLE = "IDLE"
+    CAPTURED = "CAPTURED"
+    ANALYZING = "ANALYZING"
+    ROOT_CAUSE_FOUND = "ROOT_CAUSE_FOUND"
+    PATCH_GENERATED = "PATCH_GENERATED"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    PATCH_APPLYING = "PATCH_APPLYING"
+    TESTING = "TESTING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    ROLLED_BACK = "ROLLED_BACK"
+
+
+class AgentEventName(StrEnum):
+    SESSION_STARTED = "session_started"
+    ERROR_CAPTURED = "error_captured"
+    IMAGE_RECEIVED = "image_received"
+    OCR_COMPLETED = "ocr_completed"
+    ANALYSIS_STARTED = "analysis_started"
+    ROOT_CAUSE_FOUND = "root_cause_found"
+    PATCH_GENERATED = "patch_generated"
+    APPROVAL_REQUESTED = "approval_requested"
+    PATCH_APPROVED = "patch_approved"
+    PATCH_APPLIED = "patch_applied"
+    TESTS_STARTED = "tests_started"
+    TESTS_PASSED = "tests_passed"
+    TESTS_FAILED = "tests_failed"
+    SESSION_FAILED = "session_failed"
+    RETRY_STARTED = "retry_started"
+    ROLLBACK_COMPLETED = "rollback_completed"
 
 
 class DetectedLanguage(StrictModel):
@@ -136,3 +169,66 @@ class InspectWorkspaceRequest(StrictModel):
 
 class ErrorResponse(StrictModel):
     detail: str
+
+
+class DebugSession(StrictModel):
+    id: str
+    title: str
+    state: DebugState
+    revision: int = Field(ge=0)
+    retry_count: int = Field(ge=0, le=2)
+    created_at: datetime
+    updated_at: datetime
+    last_event_sequence: int = Field(ge=1)
+
+
+class AgentEvent(StrictModel):
+    id: str
+    session_id: str
+    sequence: int = Field(ge=1)
+    name: AgentEventName
+    state: DebugState
+    summary: str
+    occurred_at: datetime
+
+
+class CreateDebugSessionRequest(StrictModel):
+    title: str = Field(default="Untitled debug session", min_length=1, max_length=120)
+
+    @field_validator("title")
+    @classmethod
+    def title_must_have_visible_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Session title must contain visible text.")
+        return normalized
+
+
+class TransitionDebugSessionRequest(StrictModel):
+    target_state: DebugState
+    expected_revision: int = Field(ge=0)
+    summary: str = Field(min_length=1, max_length=500)
+
+    @field_validator("summary")
+    @classmethod
+    def summary_must_have_visible_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Transition summary must contain visible text.")
+        return normalized
+
+
+class SessionTransitionResult(StrictModel):
+    session: DebugSession
+    event: AgentEvent
+
+
+class SessionEventList(StrictModel):
+    session_id: str
+    current_state: DebugState
+    current_revision: int = Field(ge=0)
+    events: list[AgentEvent]
+
+
+class SessionList(StrictModel):
+    sessions: list[DebugSession]
