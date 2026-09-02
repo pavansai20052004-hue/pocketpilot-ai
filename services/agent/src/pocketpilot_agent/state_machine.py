@@ -67,6 +67,8 @@ class DebugStateMachine:
     @staticmethod
     def _event_for(source: DebugState, target: DebugState) -> AgentEventName:
         if target is DebugState.FAILED:
+            if source is DebugState.ANALYZING:
+                return AgentEventName.ANALYSIS_FAILED
             return (
                 AgentEventName.TESTS_FAILED
                 if source is DebugState.TESTING

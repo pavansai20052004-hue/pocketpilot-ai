@@ -4,7 +4,7 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 2 session control plane. Secure repository actions, persistent debug sessions, validated workflow transitions, and reconnect-safe WebSocket events are implemented. AI debugging, patching, OCR, voice, and iQOO Office Kit are not implemented yet.
+> Current phase: Milestone 3 local analysis. Secure repository actions, persistent sessions, bounded local-AI context, validated root-cause results, and reconnect-safe progress events are implemented. Patch generation, OCR, voice, and iQOO Office Kit are not implemented yet.
 
 ## Foundation architecture
 
@@ -12,7 +12,7 @@ PocketPilot AI is a phone-first, local software-engineering assistant for the iQ
 | --- | --- | --- |
 | Phone client | Expo, React Native, TypeScript | Phone-first shell and typed status presentation |
 | Desktop dashboard | Vite, React, TypeScript | Workspace inspection and explicit safe-action UI |
-| Local agent | FastAPI, Pydantic, Python | Bounded scanner, detection, allowlist, process runner, typed API |
+| Local agent | FastAPI, Pydantic, Python | Secure repository actions, persistent sessions, bounded local analysis |
 | Shared contracts | TypeScript package | Cross-client workspace, repository, and command contracts |
 
 The final product will keep file access, patching, tests, model calls, and device transport behind explicit safety boundaries. See [architecture](docs/architecture.md), [delivery tasks](TASKS.md), and [judging mapping](docs/judging-mapping.md).
@@ -52,7 +52,7 @@ npm run dev:desktop
 
 Open the dashboard URL printed by Vite. Expo prints the Android QR code and local development URLs. The FastAPI health endpoint is `http://127.0.0.1:8000/health`.
 
-In the dashboard, enter one explicit repository root and choose **Inspect Project**. PocketPilot displays metadata and only the test/build/typecheck/lint actions supported by known manifests and available executables. A command runs only after its button is clicked.
+In the dashboard, enter one explicit repository root and choose **Inspect Project**. Paste an error into **Local Root-Cause Analysis** to run the read-only analysis pipeline. The default `mock` provider is clearly labeled and deterministic. To use an already-installed Ollama model, set `POCKETPILOT_LLM_PROVIDER=ollama` and configure the model name; PocketPilot never downloads a model.
 
 ## Desktop-agent API
 
@@ -75,6 +75,9 @@ Session routes:
 | `POST` | `/api/v1/sessions/{id}/transitions` | Request one revision-checked legal transition |
 | `GET` | `/api/v1/sessions/{id}/events` | Recover sequenced events after a cursor |
 | WebSocket | `/api/v1/sessions/{id}/events/ws` | Receive a snapshot, missed events, then live events |
+| `GET` | `/api/v1/analysis/provider` | Check local provider/model availability |
+| `POST` | `/api/v1/sessions/{id}/analyze` | Parse, collect bounded context, and analyze text locally |
+| `GET` | `/api/v1/sessions/{id}/analysis` | Retrieve the persisted validated result |
 
 Session history is stored locally in `.pocketpilot/sessions.db` by default and is ignored by Git. Override it with `POCKETPILOT_SESSION_DATABASE_PATH`.
 
@@ -110,8 +113,10 @@ docs/              Architecture and hackathon documentation
 - Commands are immutable templates derived from known project evidence and safe script names. The API accepts only registry IDs, never argv or shell text.
 - The runner always uses argument arrays with `shell=False`, a fixed working directory, timeout, process termination, and capped output.
 - Selecting and scanning never executes a command. Each run requires a separate explicit dashboard action.
+- Analysis receives no process runner or write API. It reads only security-approved, scored line windows and cannot trigger commands or mutations.
+- Repository text is delimited as untrusted data; model references are validated against supplied context before persistence.
 
-See [the full security model](docs/security-model.md) for trust boundaries, limits, Windows behavior, and residual risks.
+See [the local AI guide](docs/local-ai.md) and [the full security model](docs/security-model.md) for provider setup, trust boundaries, limits, and residual risks.
 
 ## License
 

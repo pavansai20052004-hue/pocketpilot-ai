@@ -94,6 +94,35 @@ class DebugSessionService:
     def get(self, session_id: str) -> DebugSession:
         return self.store.get(session_id)
 
+    def append_event(
+        self,
+        session_id: str,
+        name: AgentEventName,
+        summary: str,
+    ) -> SessionTransitionResult:
+        """Persist one analysis progress event without bypassing session ownership."""
+
+        with self._lock:
+            current = self.store.get(session_id)
+            now = datetime.now(UTC)
+            updated = current.model_copy(
+                update={
+                    "updated_at": now,
+                    "last_event_sequence": current.last_event_sequence + 1,
+                }
+            )
+            event = AgentEvent(
+                id=str(uuid.uuid4()),
+                session_id=session_id,
+                sequence=updated.last_event_sequence,
+                name=name,
+                state=current.state,
+                summary=summary.strip(),
+                occurred_at=now,
+            )
+            self.store.append_event(current, updated, event)
+            return SessionTransitionResult(session=updated, event=event)
+
     def list(self, limit: int) -> list[DebugSession]:
         return self.store.list(limit)
 

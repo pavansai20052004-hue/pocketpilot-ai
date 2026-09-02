@@ -23,6 +23,7 @@ describe('shared contracts', () => {
     expect(new Set(AGENT_EVENT_NAMES).size).toBe(AGENT_EVENT_NAMES.length);
     expect(AGENT_EVENT_NAMES).toContain('tests_passed');
     expect(AGENT_EVENT_NAMES).toContain('approval_requested');
+    expect(AGENT_EVENT_NAMES).toContain('analysis_provider_started');
   });
 
   it('accepts a typed system status', () => {

@@ -20,6 +20,15 @@ export const AGENT_EVENT_NAMES = [
   'image_received',
   'ocr_completed',
   'analysis_started',
+  'analysis_requested',
+  'error_parsed',
+  'context_collection_started',
+  'context_file_selected',
+  'context_collection_completed',
+  'analysis_provider_started',
+  'analysis_provider_completed',
+  'analysis_validation_completed',
+  'analysis_failed',
   'root_cause_found',
   'patch_generated',
   'approval_requested',
@@ -208,3 +217,42 @@ export interface CommandRun {
   readonly started_at: string;
   readonly completed_at: string;
 }
+
+export type ErrorInputType = 'TEXT' | 'CAMERA' | 'VOICE' | 'CLIPBOARD';
+export type AnalysisStatus = 'COMPLETED' | 'PROVIDER_UNAVAILABLE' | 'MODEL_NOT_FOUND' | 'TIMEOUT' | 'INVALID_RESPONSE';
+export type AnalysisConfidence = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface ErrorFrame { readonly path: string | null; readonly line: number | null; readonly symbol: string | null; }
+export interface ParsedError { readonly language: string; readonly framework: string | null; readonly package_or_module: string | null; readonly exception_type: string | null; readonly message: string; readonly frames: ReadonlyArray<ErrorFrame>; }
+export interface ContextFileSummary { readonly relative_path: string; readonly language: string | null; readonly line_start: number; readonly line_end: number; readonly score: number; readonly reason: string; }
+export interface AnalysisEvidence { readonly relative_path: string; readonly line: number | null; readonly observation: string; }
+export interface AnalysisResult {
+  readonly summary: string;
+  readonly root_cause: string;
+  readonly explanation: string;
+  readonly repair_strategy: string;
+  readonly assumptions: ReadonlyArray<string>;
+  readonly confidence: AnalysisConfidence;
+  readonly likely_file: string | null;
+  readonly likely_line: number | null;
+  readonly likely_symbol: string | null;
+  readonly evidence: ReadonlyArray<AnalysisEvidence>;
+  readonly related_files: ReadonlyArray<string>;
+  readonly warnings: ReadonlyArray<string>;
+}
+export interface AnalysisTimings { readonly parse_ms: number; readonly context_ms: number; readonly provider_ms: number; readonly validation_ms: number; readonly total_ms: number; }
+export interface AnalysisRecord {
+  readonly session_id: string;
+  readonly status: AnalysisStatus;
+  readonly provider: string;
+  readonly model: string;
+  readonly parsed_error: ParsedError;
+  readonly context_files: ReadonlyArray<ContextFileSummary>;
+  readonly context_truncated: boolean;
+  readonly result: AnalysisResult;
+  readonly timings: AnalysisTimings;
+  readonly created_at: string;
+}
+export interface AnalysisExecutionResponse { readonly session: DebugSession; readonly analysis: AnalysisRecord; }
+export interface AnalyzeSessionRequest { readonly input_type: ErrorInputType; readonly raw_text: string; readonly file_hint?: string | null; readonly language_hint?: string | null; readonly expected_revision: number; }
+export interface ProviderHealth { readonly provider: string; readonly model: string; readonly status: AnalysisStatus | null; readonly available: boolean; readonly model_available: boolean; readonly latency_ms: number; readonly detail: string; }

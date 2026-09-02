@@ -115,6 +115,11 @@ class WorkspaceService:
             commands=list(selected.registry.list()),
         )
 
+    def selected_for_analysis(self) -> SelectedWorkspace:
+        """Expose the immutable selected-workspace snapshot to read-only analysis."""
+
+        return self._selected()
+
     def run_command(self, command_id: str) -> CommandRun:
         selected = self._selected()
         result = self._runner.run(

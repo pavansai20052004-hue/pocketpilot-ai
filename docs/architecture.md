@@ -1,8 +1,8 @@
-# Architecture decision record: Phase A foundation
+# Architecture decision record: local-first foundation and analysis
 
 ## Status
 
-Accepted for foundation scaffolding on 2026-09-02. Feature implementation beyond the foundation requires a Phase A review.
+Accepted for the Phase A foundation and extended through Milestone 3 on 2026-09-02.
 
 ## Decision
 
@@ -143,4 +143,20 @@ SQLite is the source of truth; WebSocket queues are only a delivery optimization
 
 The session API cannot skip workflow states. The transition table permits the golden path, failure exits, rollback from applied outcomes, and at most two `FAILED → ANALYZING` retries. Optimistic session revisions turn stale concurrent requests into HTTP 409 responses without writing an event.
 
-Milestone 2 deliberately stores only session titles, states, summaries, revisions, and timestamps. Error bodies, source context, AI output, patch data, and command output are not part of this database yet.
+Milestone 2 deliberately stored only session titles, states, summaries, revisions, and timestamps. Milestone 3 adds a separate validated analysis-result table; raw source windows and raw model output are never persisted.
+
+## Milestone 3 local analysis engine
+
+The analysis composition root injects only read-oriented capabilities:
+
+```text
+TEXT error → ErrorParser → RepositoryContextService → AnalysisPromptBuilder
+  → LLMProvider (Mock | local Ollama) → AnalysisResultValidator
+  → AnalysisStore → existing DebugSessionService → WebSocket broker
+```
+
+`RepositoryContextService` receives an immutable selected-workspace snapshot and the existing safe path resolver. It scores stack paths and basenames, reads numbered windows under configured file/character/line limits, and cannot access the command runner. `LLMProvider` is isolated from HTTP routes and repository services; Ollama is one local adapter, while the deterministic mock supports tests and offline UI work.
+
+The model response is untrusted. Pydantic validates shape and confidence; a second validator removes files and lines absent from the supplied context, downgrades confidence, and records warnings. One provider call may be used to reformat malformed JSON. This is not a debug-session retry and cannot loop.
+
+Analysis progress is appended as metadata-only events without changing the optimistic workflow revision. State changes still use the existing transition service: `CAPTURED → ANALYZING → ROOT_CAUSE_FOUND`, or `ANALYZING → FAILED`. A per-session in-flight claim plus revision validation prevents duplicate provider work.

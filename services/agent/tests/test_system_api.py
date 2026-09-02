@@ -33,7 +33,7 @@ def test_system_status_is_explicit_about_unimplemented_components() -> None:
     assert payload["components"] == {
         "api": "ready",
         "workspace": "not_configured",
-        "model": "not_configured",
+        "model": "ready",
     }
 
 

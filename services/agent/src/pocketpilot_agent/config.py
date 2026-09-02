@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     max_command_output_bytes: int = 1_048_576
     desktop_origins: str = "http://127.0.0.1:4173,http://localhost:4173"
     session_database_path: str = ".pocketpilot/sessions.db"
+    llm_provider: str = "mock"
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "qwen2.5-coder:7b"
+    ollama_timeout_seconds: float = 45.0
+    analysis_max_context_files: int = 6
+    analysis_max_context_chars: int = 24_000
+    analysis_max_lines_per_file: int = 80
 
     @property
     def allowed_desktop_origins(self) -> list[str]:

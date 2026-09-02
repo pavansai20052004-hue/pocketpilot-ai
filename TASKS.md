@@ -6,8 +6,9 @@ This is the execution checklist for the hackathon prototype. A milestone is comp
 
 - **Complete:** Phase A / Milestone 0 — architecture and scaffolding
 - **Complete:** Milestone 1 — desktop agent, repository scanner, and safe test runner
-- **Complete, awaiting approval:** Milestone 2 — debug session API and controlled state machine
-- **Next after approval:** Milestone 3 — local analysis provider
+- **Complete:** Milestone 2 — debug session API and controlled state machine
+- **Complete, awaiting approval:** Milestone 3 — local analysis provider
+- **Next after approval:** Milestone 4 — patch lifecycle
 
 ## Dependency path
 
@@ -92,11 +93,27 @@ Verification evidence (2026-09-02):
 
 Depends on: M1, M2.
 
-- `LLMProvider` contract with Ollama and deterministic demo/mock implementations.
-- Bounded context selection and structured error/root-cause output.
-- Availability checks, timeouts, and graceful demo fallback.
+- [x] `LLMProvider` contract with Ollama and deterministic mock implementations.
+- [x] Deterministic Java/Python/JavaScript/TypeScript/plain-text parsing.
+- [x] Scored, bounded, security-filtered repository context windows.
+- [x] Central injection-resistant prompts and one bounded JSON repair attempt.
+- [x] Validated/persisted root-cause output with reference sanitization and timings.
+- [x] Session transitions, structured progress events, and WebSocket delivery.
+- [x] Provider health, typed failures, duplicate prevention, and timeout handling.
+- [x] Desktop analysis workflow and shared mobile-compatible contracts.
+- [x] Deterministic Java nullable-dereference fixture and local smoke path.
+- [x] Documentation, security verification, full suite, and milestone commit.
 
 Acceptance criteria: no full-repository upload; model selection is configurable; analysis has schema validation; unavailable Ollama does not break demo mode.
+
+Verification evidence (2026-09-02):
+
+- `python -m ruff check services/agent`: passed.
+- `python -m pytest services/agent -ra`: 67 passed, 3 skipped (two permission-dependent symlink tests and the explicitly disabled Ollama integration test).
+- `npm run check`: ESLint and all strict type checks passed; 8 Vitest tests passed; desktop production build and Expo web export passed.
+- Ollama probe: skipped because the local endpoint at `127.0.0.1:11434` refused the connection; no model was installed or pulled.
+- Deterministic Java smoke: Java detected; four bounded source/test windows selected; mock provider returned HIGH-confidence nullable-dereference analysis for `src/main/java/demo/UserService.java:12`; final state `ROOT_CAUSE_FOUND` with 15 persisted ordered events.
+- Measured smoke timings: parse 1 ms, context 3 ms, provider 1 ms, validation 0 ms, total 60 ms.
 
 ### M4 — Patch lifecycle (P0)
 

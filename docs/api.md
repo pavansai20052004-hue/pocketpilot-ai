@@ -73,4 +73,32 @@ FAILED → ANALYZING (maximum two retries)
 FAILED | SUCCESS → ROLLED_BACK
 ```
 
-These transitions model control flow only. Milestone 2 does not perform analysis, generate/apply patches, or run tests as a side effect of session advancement.
+Milestone 3 analysis invokes these transitions through the session service. Patch states remain inactive.
+
+## Local analysis
+
+Check the configured provider without downloading anything:
+
+```http
+GET /api/v1/analysis/provider
+```
+
+Submit TEXT input only after the session reaches `CAPTURED`:
+
+```http
+POST /api/v1/sessions/{session_id}/analyze
+Content-Type: application/json
+
+{
+  "input_type":"TEXT",
+  "raw_text":"java.lang.NullPointerException ...",
+  "file_hint":"UserService.java",
+  "language_hint":"Java",
+  "framework_hint":null,
+  "expected_revision":1
+}
+```
+
+The synchronous response contains the final `ROOT_CAUSE_FOUND` session and persisted analysis. WebSocket subscribers receive `analysis_requested`, parsing/context/provider/validation progress, and `root_cause_found`. Progress summaries contain paths and line ranges, never source bodies.
+
+Fetch the durable result with `GET /api/v1/sessions/{session_id}/analysis`. Typed provider failures use `PROVIDER_UNAVAILABLE`, `MODEL_NOT_FOUND`, `TIMEOUT`, or `INVALID_RESPONSE`, transition an active analysis to `FAILED`, and return an appropriate 503, 504, or 422 response. Stale or simultaneous requests return 409.

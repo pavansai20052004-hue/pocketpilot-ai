@@ -1,0 +1,6 @@
+{
+  "likely_file": "src/main/java/demo/UserService.java",
+  "likely_line": 12,
+  "root_cause_contains": "nullable value is dereferenced",
+  "must_not_modify_files": true
+}

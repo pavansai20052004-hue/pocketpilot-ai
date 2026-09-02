@@ -48,6 +48,24 @@ def java_project(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (source / "Application.java").write_text("class Application {}\n", encoding="utf-8")
+    (source / "UserService.java").write_text(
+        """package demo;
+
+class UserService {
+    private final UserRepository repository;
+
+    UserService(UserRepository repository) {
+        this.repository = repository;
+    }
+
+    String displayName(long id) {
+        User user = repository.findById(id);
+        return user.getName();
+    }
+}
+""",
+        encoding="utf-8",
+    )
     return root
 
 

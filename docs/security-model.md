@@ -80,3 +80,13 @@ Session state is stored locally in SQLite. Every mutation requires the exact cur
 WebSockets do not authorize or mutate state. They publish database-backed snapshots and sequenced events; reconnecting clients recover from SQLite after the last acknowledged sequence. The in-process broker caps each subscriber queue at 100 events and may drop transient delivery under pressure because persistent cursor recovery remains authoritative.
 
 The current event summaries are user/agent-supplied bounded text. They must not contain secrets or source bodies; richer redacted debug payloads will require explicit schemas in later milestones.
+
+## Local AI trust boundary
+
+Milestone 3 treats pasted errors, repository content, and provider responses as untrusted data. Context collection starts from the Milestone 1 metadata index, repeats sensitive/binary/reparse checks, resolves each relative path beneath the selected root, and reads only scored line windows. Defaults are 6 files, 24,000 characters, and 80 lines per file; truncation is recorded on the analysis.
+
+System instructions are sent separately from clearly delimited error and repository data. They forbid patches, scripts, commands, file modification, invented references, and chain-of-thought. Prompt-injection-like source remains data. Output must pass a strict schema; references outside supplied context are removed and confidence is reduced before persistence.
+
+Analysis and execution are separate dependency graphs. `AnalysisService` has no `SafeProcessRunner`, command registry, patch service, or filesystem write interface. A provider response can only become a validated `AnalysisResult`; it cannot enter argv, select a safe command, or mutate a file. Ollama traffic targets only the configured local URL. No cloud provider, telemetry, download, or model-pull path exists.
+
+Raw error text and source windows are used transiently and are not stored in event logs or the analysis table. Concise parsed facts, validated conclusions, context metadata, and timings are local SQLite records. The dashboard explicitly labels mock mode and exposes no patch action.

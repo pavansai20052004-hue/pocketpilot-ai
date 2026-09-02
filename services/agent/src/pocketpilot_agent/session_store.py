@@ -99,6 +99,34 @@ class SessionStore:
                 )
             self._insert_event(connection, event)
 
+    def append_event(
+        self,
+        previous: DebugSession,
+        updated: DebugSession,
+        event: AgentEvent,
+    ) -> None:
+        """Append progress without changing the workflow revision or state."""
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            result = connection.execute(
+                """UPDATE debug_sessions
+                SET updated_at = ?, last_event_sequence = ?
+                WHERE id = ? AND revision = ? AND last_event_sequence = ?""",
+                (
+                    updated.updated_at.isoformat(),
+                    updated.last_event_sequence,
+                    updated.id,
+                    previous.revision,
+                    previous.last_event_sequence,
+                ),
+            )
+            if result.rowcount != 1:
+                raise SessionRevisionConflictError(
+                    "Session changed while an analysis event was being recorded."
+                )
+            self._insert_event(connection, event)
+
     def _initialize(self) -> None:
         with self._connect() as connection:
             connection.executescript(

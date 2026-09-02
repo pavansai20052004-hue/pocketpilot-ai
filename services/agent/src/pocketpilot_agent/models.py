@@ -65,6 +65,15 @@ class AgentEventName(StrEnum):
     IMAGE_RECEIVED = "image_received"
     OCR_COMPLETED = "ocr_completed"
     ANALYSIS_STARTED = "analysis_started"
+    ANALYSIS_REQUESTED = "analysis_requested"
+    ERROR_PARSED = "error_parsed"
+    CONTEXT_COLLECTION_STARTED = "context_collection_started"
+    CONTEXT_FILE_SELECTED = "context_file_selected"
+    CONTEXT_COLLECTION_COMPLETED = "context_collection_completed"
+    ANALYSIS_PROVIDER_STARTED = "analysis_provider_started"
+    ANALYSIS_PROVIDER_COMPLETED = "analysis_provider_completed"
+    ANALYSIS_VALIDATION_COMPLETED = "analysis_validation_completed"
+    ANALYSIS_FAILED = "analysis_failed"
     ROOT_CAUSE_FOUND = "root_cause_found"
     PATCH_GENERATED = "patch_generated"
     APPROVAL_REQUESTED = "approval_requested"
@@ -232,3 +241,137 @@ class SessionEventList(StrictModel):
 
 class SessionList(StrictModel):
     sessions: list[DebugSession]
+
+
+class ErrorInputType(StrEnum):
+    TEXT = "TEXT"
+    CAMERA = "CAMERA"
+    VOICE = "VOICE"
+    CLIPBOARD = "CLIPBOARD"
+
+
+class AnalysisStatus(StrEnum):
+    COMPLETED = "COMPLETED"
+    PROVIDER_UNAVAILABLE = "PROVIDER_UNAVAILABLE"
+    MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
+    TIMEOUT = "TIMEOUT"
+    INVALID_RESPONSE = "INVALID_RESPONSE"
+
+
+class AnalysisConfidence(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class ErrorFrame(StrictModel):
+    path: str | None = None
+    line: int | None = Field(default=None, ge=1)
+    symbol: str | None = None
+
+
+class ParsedError(StrictModel):
+    language: str
+    framework: str | None = None
+    package_or_module: str | None = None
+    exception_type: str | None
+    message: str
+    frames: list[ErrorFrame]
+
+
+class ContextFileSummary(StrictModel):
+    relative_path: str
+    language: str | None
+    line_start: int = Field(ge=1)
+    line_end: int = Field(ge=1)
+    score: int = Field(ge=0)
+    reason: str
+
+
+class AnalysisRepositorySummary(StrictModel):
+    project_types: list[str]
+    frameworks: list[str]
+    build_systems: list[str]
+
+
+class AnalysisRequest(StrictModel):
+    session_id: str
+    parsed_error: ParsedError
+    repository_summary: AnalysisRepositorySummary
+    context_files: list[ContextFileSummary]
+    language: str
+    framework: str | None
+    retry_number: int = Field(ge=0, le=2)
+
+
+class AnalysisEvidence(StrictModel):
+    relative_path: str
+    line: int | None = Field(default=None, ge=1)
+    observation: str = Field(min_length=1, max_length=500)
+
+
+class AnalysisResult(StrictModel):
+    summary: str = Field(min_length=1, max_length=1000)
+    root_cause: str = Field(min_length=1, max_length=3000)
+    explanation: str = Field(min_length=1, max_length=3000)
+    repair_strategy: str = Field(min_length=1, max_length=2000)
+    assumptions: list[str] = Field(max_length=12)
+    confidence: AnalysisConfidence
+    likely_file: str | None = None
+    likely_line: int | None = Field(default=None, ge=1)
+    likely_symbol: str | None = None
+    evidence: list[AnalysisEvidence] = Field(max_length=12)
+    related_files: list[str] = Field(max_length=12)
+    warnings: list[str] = Field(max_length=12)
+
+
+class AnalysisTimings(StrictModel):
+    parse_ms: int = Field(ge=0)
+    context_ms: int = Field(ge=0)
+    provider_ms: int = Field(ge=0)
+    validation_ms: int = Field(ge=0)
+    total_ms: int = Field(ge=0)
+
+
+class AnalyzeSessionRequest(StrictModel):
+    input_type: ErrorInputType = ErrorInputType.TEXT
+    raw_text: str = Field(min_length=1, max_length=50_000)
+    file_hint: str | None = Field(default=None, max_length=1000)
+    language_hint: str | None = Field(default=None, max_length=100)
+    framework_hint: str | None = Field(default=None, max_length=100)
+    expected_revision: int = Field(ge=0)
+
+    @field_validator("raw_text")
+    @classmethod
+    def error_text_must_have_visible_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Error text must contain visible text.")
+        return value.strip()
+
+
+class AnalysisRecord(StrictModel):
+    session_id: str
+    status: AnalysisStatus
+    provider: str
+    model: str
+    parsed_error: ParsedError
+    context_files: list[ContextFileSummary]
+    context_truncated: bool
+    result: AnalysisResult
+    timings: AnalysisTimings
+    created_at: datetime
+
+
+class AnalysisExecutionResponse(StrictModel):
+    session: DebugSession
+    analysis: AnalysisRecord
+
+
+class ProviderHealth(StrictModel):
+    provider: str
+    model: str
+    status: AnalysisStatus | None
+    available: bool
+    model_available: bool
+    latency_ms: int = Field(ge=0)
+    detail: str
