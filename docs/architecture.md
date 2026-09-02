@@ -106,3 +106,22 @@ Rejected until official iQOO/Vivo Office Kit material is available. The local We
 - Agent lint and API tests pass.
 - Shared contracts are imported by both frontends.
 - Documentation distinguishes implemented foundation from planned behavior.
+
+## Milestone 1 implementation
+
+The desktop-agent core now follows a narrow synchronous request path:
+
+`explicit root → SafePathResolver → RepositoryScanner → ProjectDetector → SafeCommandRegistry → explicit POST → SafeProcessRunner`
+
+- `WorkspaceService` owns exactly one selected workspace, its immutable detected command registry, metadata index, and in-memory completed run history.
+- `RepositoryScanner` walks metadata only with file-count, per-file-size, and aggregate-size limits. It never follows symlink/reparse directories and never enters ignored dependency, VCS, cache, or build trees.
+- `ProjectDetector` reads only bounded known manifests that the scanner classified as non-sensitive. Framework claims include specific manifest evidence.
+- `SafeCommandRegistry` creates commands from fixed templates. For package managers, only exact `test`, `build`, `typecheck`, and `lint` scripts qualify. Lifecycle, deployment, and publication scripts are never registered.
+- `SafeProcessRunner` looks up a registry ID, revalidates its working directory, resolves the executable, invokes an argv array with `shell=False`, drains capped output, and terminates on timeout.
+- The API is synchronous for Milestone 1. The dashboard presents local workspace details and requires a separate user click for every command run.
+
+### Contract mapping
+
+FastAPI Pydantic models in `services/agent/src/pocketpilot_agent/models.py` and TypeScript interfaces in `packages/shared-types/src/index.ts` intentionally use the same JSON field names and enum values. They are manually synchronized in Milestone 1; schema generation is deferred until the API surface is large enough to justify it.
+
+Detailed threat assumptions and residual risks are recorded in [security-model.md](security-model.md).

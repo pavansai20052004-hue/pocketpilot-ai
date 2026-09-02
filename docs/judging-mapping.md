@@ -11,7 +11,7 @@ This document maps the product strategy to evidence we intend to demonstrate. On
 | Phone ↔ laptop workflow | Replaceable `DeviceBridge`, local Wi-Fi WebSocket, reconnect recovery, live event timeline | M2, M5 | Planned |
 | Demo reliability | Resettable broken repositories, genuine tests, readiness checks, offline mode, bounded retries | M6, M9, M12 | Planned |
 | Novel developer usefulness | Move from photographed laptop failure to reviewed and verified local patch without abandoning the phone | M6–M10 | Planned |
-| Safety and trust | One workspace capability, denylisted sensitive files, immutable proposal, explicit approval, allowlisted tests | M1, M4 | Architecture only |
+| Safety and trust | One workspace capability, sensitive-file protection, explicit command action, non-shell allowlisted runner; immutable patch approval follows in M4 | M1, M4 | M1 execution boundary implemented |
 | Feasibility | Runnable Expo, FastAPI, and Vite foundations sharing strict contracts | M0 | Implemented in Phase A |
 | iQOO differentiation | Verified Office Kit adapter if official access is available; robust WebSocket fallback regardless | M11 | Not implemented; documentation required first |
 

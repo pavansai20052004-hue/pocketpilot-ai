@@ -4,16 +4,16 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: project foundation only. Debug analysis, patching, command execution, OCR, voice, WebSocket transport, and iQOO Office Kit integration are not implemented yet.
+> Current phase: Milestone 1 desktop-agent core. Secure metadata inspection and explicit allowlisted command execution are implemented. AI debugging, patching, OCR, voice, WebSockets, and iQOO Office Kit are not implemented yet.
 
 ## Foundation architecture
 
-| Component | Technology | Phase A responsibility |
+| Component | Technology | Current responsibility |
 | --- | --- | --- |
 | Phone client | Expo, React Native, TypeScript | Phone-first shell and typed status presentation |
-| Desktop dashboard | Vite, React, TypeScript | Laptop-agent visibility shell |
-| Local agent | FastAPI, Pydantic, Python | Typed health and system-status API |
-| Shared contracts | TypeScript package | Cross-client states and event/status types |
+| Desktop dashboard | Vite, React, TypeScript | Workspace inspection and explicit safe-action UI |
+| Local agent | FastAPI, Pydantic, Python | Bounded scanner, detection, allowlist, process runner, typed API |
+| Shared contracts | TypeScript package | Cross-client workspace, repository, and command contracts |
 
 The final product will keep file access, patching, tests, model calls, and device transport behind explicit safety boundaries. See [architecture](docs/architecture.md), [delivery tasks](TASKS.md), and [judging mapping](docs/judging-mapping.md).
 
@@ -52,6 +52,19 @@ npm run dev:desktop
 
 Open the dashboard URL printed by Vite. Expo prints the Android QR code and local development URLs. The FastAPI health endpoint is `http://127.0.0.1:8000/health`.
 
+In the dashboard, enter one explicit repository root and choose **Inspect Project**. PocketPilot displays metadata and only the test/build/typecheck/lint actions supported by known manifests and available executables. A command runs only after its button is clicked.
+
+## Desktop-agent API
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/workspaces/inspect` | Select and inspect one explicit local root |
+| `GET` | `/api/v1/workspaces/current` | Return current workspace metadata |
+| `GET` | `/api/v1/workspaces/current/files` | Return the metadata-only file index |
+| `GET` | `/api/v1/workspaces/current/commands` | Return applicable allowlisted actions |
+| `POST` | `/api/v1/commands/{command_id}/run` | Explicitly execute one detected action |
+| `GET` | `/api/v1/commands/runs/{run_id}` | Retrieve a completed structured result |
+
 ## Verify
 
 ```powershell
@@ -60,7 +73,7 @@ npm run check
 .\.venv\Scripts\python -m pytest services/agent
 ```
 
-The mobile web export is only a CI-friendly Phase A build check; Android remains the target product surface.
+The mobile web export is a CI-friendly build check; Android remains the target product surface.
 
 ## Repository layout
 
@@ -76,12 +89,16 @@ demo/              Reserved for deterministic demo repositories
 docs/              Architecture and hackathon documentation
 ```
 
-## Safety status
+## Safety model
 
-- The current agent exposes read-only process metadata only.
-- No repository selector, command runner, model provider, patch application, or device bridge exists in Phase A.
-- Future mutations require a proposed diff, explicit approval, a constrained workspace, and rollback support.
-- Future build/test execution will use project-type-derived allowlists; model output will never be executed as shell input.
+- Selection resolves one canonical workspace; child paths are rejected if they are absolute, traverse upward, or resolve outside it.
+- Ignored dependencies/build trees and reparse/symlink directories are never traversed.
+- Secret-like files appear only as `excluded_sensitive` metadata; their content is never read or returned.
+- Commands are immutable templates derived from known project evidence and safe script names. The API accepts only registry IDs, never argv or shell text.
+- The runner always uses argument arrays with `shell=False`, a fixed working directory, timeout, process termination, and capped output.
+- Selecting and scanning never executes a command. Each run requires a separate explicit dashboard action.
+
+See [the full security model](docs/security-model.md) for trust boundaries, limits, Windows behavior, and residual risks.
 
 ## License
 

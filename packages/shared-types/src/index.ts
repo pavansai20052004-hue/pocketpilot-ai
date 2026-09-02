@@ -52,3 +52,110 @@ export interface AgentEvent<TPayload = Readonly<Record<string, unknown>>> {
   readonly occurredAt: string;
   readonly payload: TPayload;
 }
+
+export const COMMAND_STATUSES = [
+  'PENDING',
+  'RUNNING',
+  'PASSED',
+  'FAILED',
+  'TIMED_OUT',
+  'NOT_AVAILABLE',
+  'CANCELLED',
+] as const;
+
+export type CommandStatus = (typeof COMMAND_STATUSES)[number];
+export type CommandCategory = 'test' | 'build' | 'typecheck' | 'lint';
+export type DetectionConfidence = 'high' | 'medium' | 'low';
+export type FileCategory =
+  | 'source'
+  | 'test'
+  | 'config'
+  | 'build'
+  | 'documentation'
+  | 'excluded_sensitive'
+  | 'generated';
+
+export interface DetectedLanguage {
+  readonly name: string;
+  readonly files: number;
+}
+
+export interface DetectedFramework {
+  readonly name: string;
+  readonly confidence: DetectionConfidence;
+  readonly evidence: ReadonlyArray<string>;
+}
+
+export interface DetectedProject {
+  readonly project_type: string;
+  readonly relative_root: string;
+  readonly evidence: ReadonlyArray<string>;
+}
+
+export interface RepositoryFile {
+  readonly relative_path: string;
+  readonly extension: string;
+  readonly language: string | null;
+  readonly size_bytes: number;
+  readonly modified_time: string;
+  readonly category: FileCategory;
+}
+
+export interface SafeCommand {
+  readonly id: string;
+  readonly label: string;
+  readonly category: CommandCategory;
+  readonly executable: string;
+  readonly args: ReadonlyArray<string>;
+  readonly display_command: string;
+  readonly working_directory: string;
+  readonly evidence: string;
+}
+
+export interface WorkspaceInfo {
+  readonly id: string;
+  readonly root_path: string;
+  readonly name: string;
+  readonly exists: boolean;
+  readonly readable: boolean;
+  readonly project_types: ReadonlyArray<DetectedProject>;
+  readonly languages: ReadonlyArray<DetectedLanguage>;
+  readonly frameworks: ReadonlyArray<DetectedFramework>;
+  readonly build_systems: ReadonlyArray<string>;
+  readonly package_managers: ReadonlyArray<string>;
+  readonly file_count: number;
+  readonly relevant_file_count: number;
+  readonly total_size: number;
+  readonly git_detected: boolean;
+  readonly git_branch: string | null;
+  readonly detected_commands: ReadonlyArray<SafeCommand>;
+  readonly scan_truncated: boolean;
+  readonly scan_duration_ms: number;
+}
+
+export interface RepositoryFileIndex {
+  readonly workspace_id: string;
+  readonly files: ReadonlyArray<RepositoryFile>;
+  readonly scan_truncated: boolean;
+}
+
+export interface SafeCommandList {
+  readonly workspace_id: string;
+  readonly commands: ReadonlyArray<SafeCommand>;
+}
+
+export interface CommandRun {
+  readonly id: string;
+  readonly workspace_id: string;
+  readonly command_id: string;
+  readonly display_command: string;
+  readonly status: CommandStatus;
+  readonly exit_code: number | null;
+  readonly duration_ms: number;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly output_truncated: boolean;
+  readonly timed_out: boolean;
+  readonly started_at: string;
+  readonly completed_at: string;
+}

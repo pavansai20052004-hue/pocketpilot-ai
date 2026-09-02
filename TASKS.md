@@ -4,9 +4,9 @@ This is the execution checklist for the hackathon prototype. A milestone is comp
 
 ## Current status
 
-- **Complete, awaiting approval:** Phase A / Milestone 0 — architecture and scaffolding
-- **Next:** Milestone 1 — desktop agent, repository scanner, and safe test runner
-- **Scope gate:** do not implement debugging-agent behavior until Phase A is approved
+- **Complete:** Phase A / Milestone 0 — architecture and scaffolding
+- **Complete, awaiting approval:** Milestone 1 — desktop agent, repository scanner, and safe test runner
+- **Next after approval:** Milestone 2 — debug session API and controlled state machine
 
 ## Dependency path
 
@@ -42,12 +42,27 @@ Verification evidence (2026-09-02):
 
 Depends on: M0.
 
-- Repository workspace selection constrained to an approved root.
-- Project/build-system detection and ignore rules.
-- Allowlisted test/build command resolution with no model-provided shell execution.
-- Repository scanner and command-runner tests.
+- [x] Repository workspace selection constrained to an approved root.
+- [x] Metadata-only file index with sensitive/generated exclusions and scan limits.
+- [x] Project/language/framework/build-system detection and evidence.
+- [x] Allowlisted test/build/typecheck/lint command resolution.
+- [x] Explicit command execution with no model or shell command input.
+- [x] Timeout, output cap, stdout/stderr/exit code/duration capture.
+- [x] Versioned workspace/command API and desktop dashboard.
+- [x] Windows path, malicious input, scanner, registry, runner, and API tests.
+- [x] Final full-suite verification and real-repository smoke test.
+- [x] Review the final diff and create the milestone commit.
 
-Acceptance criteria: supported fixture projects are detected correctly; excluded and secret files are never returned; only exact approved command shapes can execute; cancellation, timeouts, and captured output are tested.
+Acceptance criteria: supported fixture projects are detected correctly; ignored trees are absent; secret contents are never returned; only exact approved command shapes execute; timeouts and bounded captured output are tested; the existing mobile build remains green.
+
+Verification evidence (2026-09-02):
+
+- `npm run check`: ESLint and all strict type checks passed; 7 Vitest tests passed; Vite production build and Expo web export passed.
+- `python -m ruff check services/agent`: passed.
+- `python -m pytest services/agent`: 31 passed, 2 symlink-creation tests skipped because the Windows host does not grant link creation; production reparse checks remain active.
+- PocketPilot repository smoke: 63 files indexed, no truncation, React/Vite + Expo + FastAPI detected, 12 commands registered.
+- Performance: scanner metadata walk 14 ms; complete inspect API request 223 ms.
+- Safe execution: `npm run test` in `packages/shared-types` passed 5 tests with exit code 0 in 3,270 ms; output was not truncated.
 
 ### M2 — Debug session API and state machine (P0)
 
