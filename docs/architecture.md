@@ -175,3 +175,28 @@ local provider → UNTRUSTED structured unified diff → PatchValidator dry run
 Approval transitions the exact current proposal into `PATCH_APPLYING`. `PatchEngine` revalidates hashes, persists original content privately, writes same-directory temporary files, flushes them, and uses atomic replacement. Only after application does `ValidationCommandSelector` choose an existing registry command in test → typecheck → build → lint order. Model text never becomes argv.
 
 Patch workflow JSON and private rollback data share the session SQLite database. A stored `APPLYING` operation becomes `RECOVERY_REQUIRED` after process reconstruction. WebSocket snapshots include the current public patch view; source and rollback contents remain excluded.
+
+## Milestone 5 phone control plane
+
+```text
+ANDROID PHONE
+  │
+  ├── Pairing code → opaque device token
+  ├── Authenticated HTTP actions
+  └── Authenticated, sequenced WebSocket
+                         ↓
+FASTAPI LOCAL AGENT
+  ├── DeviceRegistry (token hashes and revocation)
+  ├── DebugSession + durable events
+  ├── Local AI analysis
+  ├── PatchEngine + approval gate
+  └── SafeProcessRunner
+                         ↓
+                 LOCAL REPOSITORY
+```
+
+Repository access stays entirely on the laptop. The desktop explicitly selects one workspace and owns pairing administration. The phone sees bounded workspace metadata but has no filesystem path picker, source download, command text input, or rollback snapshot.
+
+`DeviceBridge` separates device transport from UI state. `LocalWebSocketBridge` is the production/demo path and delegates authenticated connection, cursor tracking, duplicate suppression, and bounded 1/2/4/8/15-second reconnects to `PocketPilotSocket`. `MockDeviceBridge` supports deterministic UI development. `OfficeKitBridge` is an explicit throwing stub and does not claim vendor integration.
+
+HTTP remains authoritative for actions and revisions. SQLite remains authoritative for state and events. WebSocket snapshots reconcile after Wi-Fi loss, backgrounding, or agent restart; `AppState` foregrounding reconnects and refreshes the active session. The Expo app uses a reducer for connection, workspace, session, event, analysis, patch, and validation state rather than embedding network state in individual screens.

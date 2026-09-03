@@ -6,10 +6,14 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "android": {
-      "package": "ai.pocketpilot.mobile"
+      "package": "ai.pocketpilot.mobile",
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

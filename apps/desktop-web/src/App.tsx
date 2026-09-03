@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { AgentEvent, AnalysisExecutionResponse, AnalysisRecord, CommandRun, DebugSession, PatchActionResponse, PatchGenerationResponse, PatchWorkflowView, ProviderHealth, SafeCommand, SessionTransitionResult, WorkspaceInfo } from '@pocketpilot/shared-types';
+import type { AgentEvent, AnalysisExecutionResponse, AnalysisRecord, CommandRun, DebugSession, DeviceList, PairingCodeView, PatchActionResponse, PatchGenerationResponse, PatchWorkflowView, ProviderHealth, SafeCommand, SessionTransitionResult, WorkspaceInfo } from '@pocketpilot/shared-types';
 
 const apiBaseUrl = import.meta.env.VITE_AGENT_HTTP_URL ?? 'http://127.0.0.1:8000';
 
@@ -19,10 +19,46 @@ export function App() {
   const [provider, setProvider] = useState<ProviderHealth | null>(null);
   const [debugSession, setDebugSession] = useState<DebugSession | null>(null);
   const [patchWorkflow, setPatchWorkflow] = useState<PatchWorkflowView | null>(null);
+  const [pairing, setPairing] = useState<PairingCodeView | null>(null);
+  const [devices, setDevices] = useState<DeviceList>({ devices: [] });
+  const [pairingNow, setPairingNow] = useState(Date.now());
 
   useEffect(() => {
     void request<ProviderHealth>('/api/v1/analysis/provider').then(setProvider).catch(() => setProvider(null));
+    void refreshDevices();
+    void request<PairingCodeView>('/api/v1/devices/pairing-code').then(setPairing).catch(() => setPairing(null));
   }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setPairingNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => { void refreshDevices(); }, 3000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  async function refreshDevices() {
+    try { setDevices(await request<DeviceList>('/api/v1/devices')); }
+    catch { setDevices({ devices: [] }); }
+  }
+
+  async function generatePairingCode() {
+    setBusyAction('pairing'); setError(null);
+    try { setPairing(await request<PairingCodeView>('/api/v1/devices/pairing-code', { method: 'POST' })); }
+    catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
+  }
+
+  async function revokeDevice(deviceId: string) {
+    setBusyAction(`revoke-${deviceId}`); setError(null);
+    try {
+      await request(`/api/v1/devices/${encodeURIComponent(deviceId)}/revoke`, { method: 'POST' });
+      await refreshDevices();
+    } catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
+  }
 
   async function inspectWorkspace() {
     if (!workspacePath.trim()) {
@@ -186,6 +222,22 @@ export function App() {
           </button>
         </div>
         <p className="input-note">No files are modified. Secret-like content and generated directories are excluded.</p>
+      </section>
+
+      <section className="device-panel">
+        <div className="panel-heading">
+          <div><span className="kicker">DEVICE CONNECTION</span><h2>Pair your phone</h2></div>
+          <span className="security-badge"><i /> authenticated LAN</span>
+        </div>
+        <div className="device-grid">
+          <div className="pairing-code-card">
+            <span>AGENT ADDRESS</span><code>{pairing?.agent_address ?? `${window.location.hostname}:8000`}</code>
+            <span>PAIRING CODE</span><strong>{pairing === null || new Date(pairing.expires_at).getTime() <= pairingNow ? '— — —' : `${pairing.code.slice(0, 3)} ${pairing.code.slice(3)}`}</strong>
+            <p>{pairing === null ? 'Generate a single-use code when your phone is ready.' : `Expires in ${formatCountdown(new Date(pairing.expires_at).getTime() - pairingNow)} · ${pairing.attempts_remaining} attempts`}</p>
+            <button className="primary-button device-button" disabled={busyAction !== null} onClick={() => void generatePairingCode()} type="button">{busyAction === 'pairing' ? 'GENERATING…' : 'GENERATE NEW CODE'}</button>
+          </div>
+          <div className="device-list"><span className="kicker">CONNECTED DEVICES</span>{devices.devices.filter((device) => device.status === 'CONNECTED').map((device) => <div className="device-row" key={device.device_id}><i /><div><strong>{device.display_name}</strong><span>Last seen {relativeDeviceTime(device.last_seen, pairingNow)}</span></div><button disabled={busyAction !== null} onClick={() => void revokeDevice(device.device_id)} type="button">REVOKE</button></div>)}{devices.devices.every((device) => device.status !== 'CONNECTED') && <p className="muted">No paired phones. Tokens are stored as hashes only.</p>}</div>
+        </div>
       </section>
 
       {error !== null && <div className="error-banner"><strong>REQUEST BLOCKED</strong>{error}</div>}
@@ -399,4 +451,16 @@ function isSnapshotMessage(value: unknown): value is { type: 'snapshot'; events:
 
 function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : 'The local agent request failed.';
+}
+
+function formatCountdown(milliseconds: number): string {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+}
+
+function relativeDeviceTime(value: string, now: number): string {
+  const seconds = Math.max(0, Math.floor((now - new Date(value).getTime()) / 1000));
+  if (seconds < 10) return 'now';
+  if (seconds < 60) return `${seconds}s ago`;
+  return `${Math.floor(seconds / 60)}m ago`;
 }

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     command_timeout_seconds: float = 120.0
     max_command_output_bytes: int = 1_048_576
     desktop_origins: str = "http://127.0.0.1:4173,http://localhost:4173"
+    mobile_web_origins: str = "http://127.0.0.1:8081,http://localhost:8081"
     session_database_path: str = ".pocketpilot/sessions.db"
     llm_provider: str = "mock"
     ollama_base_url: str = "http://127.0.0.1:11434"
@@ -35,12 +36,16 @@ class Settings(BaseSettings):
     patch_max_files: int = 5
     patch_max_additions: int = 100
     patch_max_change_ratio: float = 0.6
+    pairing_code_ttl_seconds: int = 300
+    pairing_max_attempts: int = 5
+    device_token_ttl_seconds: int = 86_400
 
     @property
     def allowed_desktop_origins(self) -> list[str]:
-        """Return normalized CORS origins for the local dashboard."""
+        """Return normalized CORS origins for local browser clients."""
 
-        return [origin.strip() for origin in self.desktop_origins.split(",") if origin.strip()]
+        configured = f"{self.desktop_origins},{self.mobile_web_origins}"
+        return [origin.strip() for origin in configured.split(",") if origin.strip()]
 
 
 @lru_cache(maxsize=1)

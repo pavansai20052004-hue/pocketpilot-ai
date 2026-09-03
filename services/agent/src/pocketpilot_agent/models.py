@@ -519,3 +519,57 @@ class PatchGenerationResponse(StrictModel):
 class PatchActionResponse(StrictModel):
     session: DebugSession
     workflow: PatchWorkflowView
+
+
+class DevicePermission(StrEnum):
+    READ_SESSION = "READ_SESSION"
+    ANALYZE = "ANALYZE"
+    GENERATE_PATCH = "GENERATE_PATCH"
+    APPROVE_PATCH = "APPROVE_PATCH"
+    RUN_VALIDATION = "RUN_VALIDATION"
+    ROLLBACK = "ROLLBACK"
+
+
+class DeviceStatus(StrEnum):
+    CONNECTED = "CONNECTED"
+    REVOKED = "REVOKED"
+
+
+class PairingCodeView(StrictModel):
+    code: str = Field(pattern=r"^\d{6}$")
+    expires_at: datetime
+    attempts_remaining: int = Field(ge=0)
+    agent_address: str
+
+
+class PairDeviceRequest(StrictModel):
+    code: str = Field(pattern=r"^\d{6}$")
+    display_name: str = Field(min_length=1, max_length=80)
+
+    @field_validator("display_name")
+    @classmethod
+    def display_name_must_have_visible_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Device name must contain visible text.")
+        return normalized
+
+
+class DeviceView(StrictModel):
+    device_id: str
+    display_name: str
+    paired_at: datetime
+    last_seen: datetime
+    status: DeviceStatus
+    token_created_at: datetime
+    token_expires_at: datetime
+    permissions: list[DevicePermission]
+
+
+class PairDeviceResponse(StrictModel):
+    device: DeviceView
+    token: str
+
+
+class DeviceList(StrictModel):
+    devices: list[DeviceView]

@@ -9,12 +9,14 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "export:web": "expo export --platform web --output-dir dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@expo/metro-runtime": "57.0.15",
     "@pocketpilot/shared-types": "0.1.0",
     "expo": "57.0.19",
+    "expo-secure-store": "~57.0.3",
     "expo-status-bar": "57.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -24,6 +26,7 @@
   "devDependencies": {
     "@types/react": "19.2.18",
     "babel-preset-expo": "57.0.10",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
   }
 }

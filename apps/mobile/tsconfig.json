@@ -5,5 +5,5 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["App.tsx"]
+  "include": ["App.tsx", "src"]
 }

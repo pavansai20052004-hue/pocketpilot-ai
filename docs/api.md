@@ -1,6 +1,23 @@
 # Local agent API
 
-All routes are versioned under `/api/v1`. The documented development server binds to loopback. Pydantic rejects undeclared request fields.
+All routes are versioned under `/api/v1`. The development server may bind to loopback or a private LAN interface; non-loopback access is authenticated. Pydantic rejects undeclared request fields.
+
+## Device pairing and LAN authentication
+
+The laptop dashboard uses loopback and may generate a random six-digit code with `POST /api/v1/devices/pairing-code`. `GET /api/v1/devices/pairing-code` reads the current unexpired code. Both endpoints, device listing, and revocation are loopback-only.
+
+A phone on the LAN exchanges the code once:
+
+```http
+POST /api/v1/devices/pair
+Content-Type: application/json
+
+{"code":"482917","display_name":"Pavan's iQOO"}
+```
+
+The response contains minimal device metadata, permissions, expiry, and an opaque token returned only once. Subsequent protected HTTP calls include `Authorization: Bearer <token>`. Missing, invalid, or expired credentials return `401`; revoked devices and non-loopback pairing administration return `403`; exhausted pairing guesses return `429`; expired or consumed codes return `410`.
+
+Non-loopback workspace, command, session, analysis, patch, and provider routes are protected. `/health`, system status, and the pairing exchange remain public. Loopback access remains trusted for the desktop dashboard.
 
 ## Debug sessions
 
@@ -41,8 +58,10 @@ GET /api/v1/sessions/{session_id}/events?after_sequence=4
 Connect to:
 
 ```text
-ws://127.0.0.1:8000/api/v1/sessions/{session_id}/events/ws?after_sequence=4
+ws://192.168.1.23:8000/api/v1/sessions/{session_id}/events/ws?after_sequence=4
 ```
+
+After the LAN socket opens, the first client message must be `{"type":"authenticate","token":"<device token>"}`. No session snapshot or event is released before validation. Invalid or expired tokens close with `4401`; revoked tokens close with `4403`. Loopback desktop sockets need no authentication message. Keeping credentials out of the URL prevents access-log leakage.
 
 The first message is always a snapshot:
 
@@ -73,7 +92,11 @@ FAILED → ANALYZING (maximum two retries)
 FAILED | SUCCESS → ROLLED_BACK
 ```
 
-Milestone 3 analysis invokes these transitions through the session service. Patch states remain inactive.
+Analysis and patch services invoke these transitions through the session service.
+
+## Mobile session flow
+
+The phone creates a session, transitions it to `CAPTURED`, and immediately opens the authenticated WebSocket. HTTP triggers analysis and patch actions while WebSocket messages drive visible progress. On reconnect, the phone sends its greatest processed sequence, accepts the authoritative snapshot, discards duplicates, and fetches current analysis or patch records as needed.
 
 ## Local analysis
 

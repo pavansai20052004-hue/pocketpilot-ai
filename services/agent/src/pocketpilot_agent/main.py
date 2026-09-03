@@ -1,7 +1,11 @@
 """PocketPilot FastAPI application factory and routes."""
 
-from fastapi import FastAPI
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.responses import Response
 
 from pocketpilot_agent import __version__
 from pocketpilot_agent.analysis_api import router as analysis_router
@@ -10,6 +14,13 @@ from pocketpilot_agent.analysis_service import AnalysisService
 from pocketpilot_agent.analysis_store import AnalysisStore
 from pocketpilot_agent.api import router as api_router
 from pocketpilot_agent.config import Settings, get_settings
+from pocketpilot_agent.device_auth import bearer_token, is_trusted_local_client
+from pocketpilot_agent.device_registry import (
+    DeviceAuthenticationError,
+    DeviceRegistry,
+    DeviceRevokedError,
+)
+from pocketpilot_agent.devices_api import router as devices_router
 from pocketpilot_agent.event_broker import SessionEventBroker
 from pocketpilot_agent.patch_api import router as patch_router
 from pocketpilot_agent.patch_provider import MockPatchProvider, OllamaPatchProvider
@@ -36,7 +47,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
     )
     workspace_service = WorkspaceService(active_settings)
+    application.state.settings = active_settings
     application.state.workspace_service = workspace_service
+    application.state.device_registry = DeviceRegistry(
+        active_settings.session_database_path,
+        pairing_ttl_seconds=active_settings.pairing_code_ttl_seconds,
+        pairing_max_attempts=active_settings.pairing_max_attempts,
+        token_ttl_seconds=active_settings.device_token_ttl_seconds,
+    )
     session_service = DebugSessionService(SessionStore(active_settings.session_database_path))
     application.state.debug_session_service = session_service
     application.state.session_event_broker = SessionEventBroker()
@@ -83,12 +101,43 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=active_settings.allowed_desktop_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Authorization", "Content-Type"],
     )
+
+    @application.middleware("http")
+    async def require_lan_device_auth(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        path = request.url.path
+        protected = path.startswith("/api/v1/") and not path.startswith(
+            "/api/v1/devices"
+        ) and path != "/api/v1/system/status"
+        if (
+            request.method != "OPTIONS"
+            and protected
+            and not is_trusted_local_client(request.client)
+        ):
+            token = bearer_token(request.headers.get("authorization"))
+            try:
+                request.state.device = application.state.device_registry.authenticate(token)
+            except DeviceRevokedError as exc:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": str(exc)},
+                )
+            except DeviceAuthenticationError as exc:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": str(exc)},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        return await call_next(request)
+
     application.include_router(api_router)
     application.include_router(sessions_router)
     application.include_router(analysis_router)
     application.include_router(patch_router)
+    application.include_router(devices_router)
 
     @application.get("/health", response_model=HealthResponse, tags=["system"])
     async def health() -> HealthResponse:

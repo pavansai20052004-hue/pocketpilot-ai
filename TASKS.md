@@ -8,12 +8,13 @@ This is the execution checklist for the hackathon prototype. A milestone is comp
 - **Complete:** Milestone 1 — desktop agent, repository scanner, and safe test runner
 - **Complete:** Milestone 2 — debug session API and controlled state machine
 - **Complete:** Milestone 3 — local analysis provider
-- **Complete, awaiting approval:** Milestone 4 — patch lifecycle
-- **Next after approval:** Milestone 5 — mobile bridge and core UI
+- **Complete:** Milestone 4 — patch lifecycle
+- **Complete, awaiting approval:** Milestone 5 — authenticated mobile bridge and complete text-debug workflow
+- **Next after approval:** Milestone 6 — Camera Vision Debugger / OCR
 
 ## Dependency path
 
-`M0 foundation → M1 safe local primitives → M2 session API → M3 analysis → M4 patch lifecycle → M5 mobile bridge → M6 end-to-end flow → M7/M8 inputs → M9 demo repos → M10 polish → M11 verified device integration → M12 final QA`
+`M0 foundation → M1 safe local primitives → M2 session API → M3 analysis → M4 patch lifecycle → M5 authenticated phone workflow → M6 camera OCR → M7 voice → M8/M9 demo polish → M11 verified device integration → M12 final QA`
 
 ## Milestones
 
@@ -144,34 +145,41 @@ Verification evidence (2026-09-02):
 
 ### M5 — Mobile bridge and core UI (P0)
 
-Depends on: M2.
+Depends on: M2, M3, M4.
 
-- `DeviceBridge` abstraction and local WebSocket implementation.
-- Connection, capture/paste, analysis, diff approval, progress, and result screens.
-- Reconnect and stale-session behavior.
+- [x] Random, expiring, single-use, guess-limited pairing codes and hashed device-token registry.
+- [x] Loopback-only pairing administration, device list, last-seen status, and revocation dashboard.
+- [x] Authenticated LAN HTTP boundary and WebSocket connection setup.
+- [x] Expo SecureStore token/address/device persistence on Android with no plain AsyncStorage fallback.
+- [x] `DeviceBridge`, production `LocalWebSocketBridge`, dev `MockDeviceBridge`, and unimplemented Office Kit stub.
+- [x] Central typed mobile API client, useful network errors, timeout, and bounded safe retries.
+- [x] Phone Home, Debug, Sessions, Settings, root-cause, diff review, approval, applying, success, failure, and rollback UI.
+- [x] Sequenced snapshot reconciliation, duplicate suppression, bounded reconnect, and AppState foreground recovery.
+- [x] Demo Mode that prefills only input while retaining real backend execution.
+- [x] Backend auth, TypeScript client/socket/reducer, and authenticated end-to-end device-like smoke coverage.
 
-Acceptance criteria: Android client completes the typed local connection flow and visibly represents every workflow state.
+Acceptance criteria: the Android-first client controls the complete authenticated text-debug workflow while workspace selection and all repository data remain on the laptop.
 
-### M6 — End-to-end text debugging (P0)
+Verification evidence (2026-09-03):
 
-Depends on: M3, M4, M5.
+- `python -m ruff check services/agent`: passed. `python -m pytest services/agent -ra`: 92 passed, 4 skipped (two opt-in Ollama checks and two Windows symlink-permission checks).
+- ESLint and strict TypeScript passed. Vitest: desktop 2, mobile 12, shared contracts 6; 20 total passed with no skips. Desktop production build and Expo web export passed.
+- Backend/device-focused checks passed: pairing success/expiry/wrong-code/attempt-limit/reuse, token success/expiry/revocation, protected HTTP, unauthorized/authorized WebSocket, and full device-like workflow.
+- Device-like temporary-copy smoke: phone client paired, authenticated its socket, analyzed the real traceback, received root cause, reviewed a non-empty real diff, approved it, passed real pytest, rolled back exact bytes, and reconnected to a coherent `ROLLED_BACK` snapshot.
+- Local smoke timings: code generation 21 ms, pairing 7 ms, session start 18 ms, authenticated WebSocket connect 8 ms, mock analysis 64 ms, event reconciliation 17 ms, patch generation 51 ms, apply plus real pytest verification 534 ms, rollback 26 ms, reconnect snapshot 9 ms.
+- Physical Android test: skipped because ADB and a connected device were unavailable; no device result is inferred from the Expo web export.
 
-- Text error → context → analysis → patch → approval → test → verified result.
-- One automated integration scenario with real tests.
+### M6 — Camera Vision Debugger / OCR (P1)
 
-Acceptance criteria: deterministic broken fixture is repaired only after approval and its real test suite passes; failure and retry limits are observable.
-
-### M7 — Camera OCR (P1)
-
-Depends on: M5, M6.
+Depends on: M5.
 
 - Camera capture, preprocessing, device OCR adapter, confidence, and editable extraction.
 
 Acceptance criteria: terminal screenshot fixture produces editable `ErrorContext`; low confidence never advances without review.
 
-### M8 — Voice actions (P1)
+### M7 — Voice actions (P1)
 
-Depends on: M5, M6.
+Depends on: M5.
 
 - Speech adapter and fixed intent mapping for supported actions.
 

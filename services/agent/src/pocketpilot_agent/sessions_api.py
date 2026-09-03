@@ -1,5 +1,6 @@
 """Versioned debug-session HTTP and WebSocket API."""
 
+import asyncio
 from typing import Annotated
 
 from fastapi import (
@@ -13,6 +14,15 @@ from fastapi import (
     status,
 )
 
+from pocketpilot_agent.device_auth import (
+    authenticate_websocket,
+    bearer_token,
+    is_trusted_local_client,
+)
+from pocketpilot_agent.device_registry import (
+    DeviceAuthenticationError,
+    DeviceRevokedError,
+)
 from pocketpilot_agent.event_broker import SessionEventBroker
 from pocketpilot_agent.models import (
     CreateDebugSessionRequest,
@@ -131,6 +141,29 @@ async def stream_session_events(
     broker: SessionEventBroker = websocket.app.state.session_event_broker
     await websocket.accept()
     try:
+        local_client = is_trusted_local_client(websocket.client)
+        token = bearer_token(websocket.headers.get("authorization"))
+        if not local_client and not token:
+            authentication = await asyncio.wait_for(websocket.receive_json(), timeout=5)
+            if (
+                isinstance(authentication, dict)
+                and authentication.get("type") == "authenticate"
+                and isinstance(authentication.get("token"), str)
+            ):
+                token = authentication["token"]
+        authenticate_websocket(websocket, websocket.app.state.device_registry, token)
+    except WebSocketDisconnect:
+        return
+    except (TimeoutError, ValueError):
+        await websocket.close(code=4401, reason="Device authentication is required.")
+        return
+    except DeviceRevokedError:
+        await websocket.close(code=4403, reason="This device has been revoked.")
+        return
+    except DeviceAuthenticationError:
+        await websocket.close(code=4401, reason="Device authentication is required.")
+        return
+    try:
         service.get(session_id)
     except SessionNotFoundError:
         await websocket.close(code=4404, reason="Debug session was not found.")
@@ -158,7 +191,32 @@ async def stream_session_events(
             last_sent = snapshot.events[-1].sequence
         try:
             while True:
-                event = await queue.get()
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=5)
+                except TimeoutError:
+                    if token:
+                        try:
+                            websocket.app.state.device_registry.authenticate(token)
+                        except DeviceRevokedError:
+                            await websocket.close(
+                                code=4403, reason="This device has been revoked."
+                            )
+                            return
+                        except DeviceAuthenticationError:
+                            await websocket.close(
+                                code=4401, reason="Device authentication expired."
+                            )
+                            return
+                    continue
+                if token:
+                    try:
+                        websocket.app.state.device_registry.authenticate(token)
+                    except DeviceRevokedError:
+                        await websocket.close(code=4403, reason="This device has been revoked.")
+                        return
+                    except DeviceAuthenticationError:
+                        await websocket.close(code=4401, reason="Device authentication expired.")
+                        return
                 if event.sequence <= last_sent:
                     continue
                 await websocket.send_json(

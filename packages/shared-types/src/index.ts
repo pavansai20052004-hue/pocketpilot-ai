@@ -100,6 +100,10 @@ export interface SessionEventList {
   readonly events: ReadonlyArray<AgentEvent>;
 }
 
+export interface SessionList {
+  readonly sessions: ReadonlyArray<DebugSession>;
+}
+
 export type SessionWebSocketMessage =
   | {
       readonly type: 'snapshot';
@@ -279,3 +283,11 @@ export interface ValidationResult { readonly patch_id: string; readonly command:
 export interface PatchWorkflowView { readonly session_id: string; readonly status: PatchStatus; readonly proposal: PatchProposal; readonly validation: PatchValidationResult; readonly application: PatchApplicationResult | null; readonly test_result: ValidationResult | null; readonly rollback_status: RollbackStatus; readonly rollback_duration_ms: number | null; readonly updated_at: string; }
 export interface PatchGenerationResponse { readonly session: DebugSession; readonly workflow: PatchWorkflowView; }
 export interface PatchActionResponse { readonly session: DebugSession; readonly workflow: PatchWorkflowView; }
+
+export type DevicePermission = 'READ_SESSION' | 'ANALYZE' | 'GENERATE_PATCH' | 'APPROVE_PATCH' | 'RUN_VALIDATION' | 'ROLLBACK';
+export type DeviceStatus = 'CONNECTED' | 'REVOKED';
+export interface PairingCodeView { readonly code: string; readonly expires_at: string; readonly attempts_remaining: number; readonly agent_address: string; }
+export interface PairDeviceRequest { readonly code: string; readonly display_name: string; }
+export interface DeviceView { readonly device_id: string; readonly display_name: string; readonly paired_at: string; readonly last_seen: string; readonly status: DeviceStatus; readonly token_created_at: string; readonly token_expires_at: string; readonly permissions: ReadonlyArray<DevicePermission>; }
+export interface PairDeviceResponse { readonly device: DeviceView; readonly token: string; }
+export interface DeviceList { readonly devices: ReadonlyArray<DeviceView>; }

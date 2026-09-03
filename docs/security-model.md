@@ -7,7 +7,7 @@ Milestone 1 grants the local FastAPI process two bounded capabilities after an e
 1. inspect metadata beneath one selected repository root;
 2. execute one registry-generated build/test/typecheck/lint action after a separate explicit request.
 
-The selected repository is trusted as developer-controlled code, but it is not assumed to be free of secrets, generated files, symlinks, or hostile filenames. Package scripts and test code can themselves execute code; therefore command buttons are approval boundaries, not passive inspection. The API remains bound to loopback in the documented startup command and CORS is limited to configured local dashboard origins.
+The selected repository is trusted as developer-controlled code, but it is not assumed to be free of secrets, generated files, symlinks, or hostile filenames. Package scripts and test code can themselves execute code; therefore command buttons are approval boundaries, not passive inspection. CORS is limited to configured dashboard origins. LAN binding is supported only with the device-authentication boundary below.
 
 ## Workspace boundary
 
@@ -64,11 +64,21 @@ On Windows, npm is invoked through `node.exe` and its fixed `npm-cli.js` entrypo
 
 Automated tests attempt nonexistent roots, `..` traversal, absolute child paths, out-of-root working directories, Windows system-root selection, unknown IDs, shell/injection-like IDs, unsafe package script names, symlink escapes where host permissions permit, output floods, missing executables, non-zero exits, and timeouts. API assertions also verify that error responses do not contain Python tracebacks and sensitive index records have no content.
 
+## LAN pairing and device tokens
+
+The LAN threat model assumes another device on the local network may discover the agent port. All non-loopback workspace, command, session, analysis, patch, and WebSocket access therefore requires a valid device credential. Health and pairing exchange remain public; pairing-code generation, device listing, and revocation are restricted to a direct loopback client.
+
+Pairing codes use a cryptographic random generator, contain six digits, live only in process memory, expire after five minutes by default, permit five guesses, and are consumed after one successful exchange. Regeneration invalidates the previous code. Codes are never written to SQLite or event history.
+
+Successful pairing returns a 32-byte opaque token with a device ID, creation/expiry timestamps, and a fixed prototype permission set. The server stores only SHA-256 token hashes plus minimal device metadata. Android stores the token, address, and device ID in Expo SecureStore; web development keeps them only in memory and never falls back to plain AsyncStorage. Source code, error context, and rollback snapshots are not stored on the phone.
+
+Authentication updates `last_seen`. Expired and unknown tokens receive `401`; revoked tokens receive `403` or WebSocket close `4403`. Every HTTP action is revalidated, and active sockets revalidate before each event and at least every five seconds, so revocation promptly disconnects an idle phone. The phone cannot select or browse filesystem paths: only the explicit workspace selected on the laptop is exposed as bounded metadata.
+
 ## Known limitations
 
 - Milestone 1 stores the current workspace and completed run results in memory; process restart clears them.
 - Runs are synchronous. A user cancellation endpoint and live streaming belong to Milestone 2; timeout termination is implemented now.
-- No authentication or LAN pairing exists yet, so the agent should remain loopback-only.
+- The prototype uses direct HTTP/WebSocket on a trusted private LAN rather than TLS. Do not expose the port through router forwarding, public Wi-Fi, or an untrusted tunnel.
 - File content retrieval is intentionally absent.
 - Reparse/symlink tests may skip on Windows hosts that do not permit creating test links; production scanning still checks the reparse attribute.
 - Package-manager scripts are repository code and may perform arbitrary behavior despite having an allowed name. Explicit user approval and repository trust are required.
@@ -77,7 +87,7 @@ Automated tests attempt nonexistent roots, `..` traversal, absolute child paths,
 
 Session state is stored locally in SQLite. Every mutation requires the exact current revision, follows the central transition table, increments the revision and event sequence once, and commits the session/event pair atomically. Invalid, stale, or retry-exhausted transitions return a conflict and append nothing.
 
-WebSockets do not authorize or mutate state. They publish database-backed snapshots and sequenced events; reconnecting clients recover from SQLite after the last acknowledged sequence. The in-process broker caps each subscriber queue at 100 events and may drop transient delivery under pressure because persistent cursor recovery remains authoritative.
+WebSockets do not mutate state. They publish database-backed snapshots and sequenced events; reconnecting clients recover from SQLite after the last acknowledged sequence. LAN sockets must authenticate in their first message before any snapshot or event is released, while loopback remains trusted for the desktop. Keeping the token out of the URL prevents access-log leakage. The in-process broker caps each subscriber queue at 100 events and may drop transient delivery under pressure because persistent cursor recovery remains authoritative.
 
 The current event summaries are user/agent-supplied bounded text. They must not contain secrets or source bodies; richer redacted debug payloads will require explicit schemas in later milestones.
 
