@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiClient, normalizeBaseUrl, type Fetcher } from './client';
 import { pairDevice, parsePairDeviceResponse } from './devices';
+import { analyzeText } from './analysis';
 
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
@@ -52,5 +53,17 @@ describe('mobile API client', () => {
 
     await expect(client.request('/api/v1/sessions')).rejects.toMatchObject({ status: 409, retryable: false });
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves confirmed camera OCR provenance and sends text rather than an image', async () => {
+    const fetcher = vi.fn<Fetcher>().mockResolvedValue(jsonResponse({ session: {}, analysis: {} }));
+    const client = new ApiClient({ baseUrl: 'http://laptop:8000', token: 'token', fetcher });
+    const session = { id: 'session-1', revision: 1 } as Parameters<typeof analyzeText>[1];
+    await analyzeText(client, session, 'TypeError: boom', 'TypeScript', 'CAMERA');
+
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({ input_type: 'CAMERA', raw_text: 'TypeError: boom' });
+    expect(JSON.stringify(body)).not.toContain('image');
+    expect(JSON.stringify(body)).not.toContain('file:///');
   });
 });

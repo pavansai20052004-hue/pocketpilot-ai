@@ -109,6 +109,52 @@ def test_provider_health_reports_mock_ready(tmp_path: Path) -> None:
     assert response.json()["provider"] == "mock"
 
 
+def test_camera_and_gallery_confirmed_text_preserve_provenance(
+    tmp_path: Path, java_project: Path
+) -> None:
+    for source in ("CAMERA", "GALLERY"):
+        app = build_app(tmp_path / source.lower())
+        session_id = prepare_captured(app, java_project)
+        response = anyio.run(
+            request,
+            app,
+            "POST",
+            f"/api/v1/sessions/{session_id}/analyze",
+            {
+                "input_type": source,
+                "raw_text": (
+                    "java.lang.NullPointerException: user was null\n"
+                    "at demo.UserService.displayName(UserService.java:12)"
+                ),
+                "expected_revision": 1,
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["analysis"]["input_source"] == source
+        restored = anyio.run(
+            request, app, "GET", f"/api/v1/sessions/{session_id}/analysis"
+        )
+        assert restored.json()["input_source"] == source
+
+
+def test_unimplemented_voice_input_remains_rejected(
+    tmp_path: Path, java_project: Path
+) -> None:
+    app = build_app(tmp_path)
+    session_id = prepare_captured(app, java_project)
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/analyze",
+        {"input_type": "VOICE", "raw_text": "ValueError: x", "expected_revision": 1},
+    )
+
+    assert response.status_code == 422
+    assert "confirmed text" in response.json()["detail"]
+
+
 def test_analysis_requires_selected_workspace(tmp_path: Path) -> None:
     app = build_app(tmp_path)
     created = anyio.run(request, app, "POST", "/api/v1/sessions", {"title": "No root"})

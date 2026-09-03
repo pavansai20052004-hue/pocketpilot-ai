@@ -256,6 +256,7 @@ class SessionList(StrictModel):
 class ErrorInputType(StrEnum):
     TEXT = "TEXT"
     CAMERA = "CAMERA"
+    GALLERY = "GALLERY"
     VOICE = "VOICE"
     CLIPBOARD = "CLIPBOARD"
 
@@ -361,6 +362,7 @@ class AnalyzeSessionRequest(StrictModel):
 
 class AnalysisRecord(StrictModel):
     session_id: str
+    input_source: ErrorInputType = ErrorInputType.TEXT
     status: AnalysisStatus
     provider: str
     model: str

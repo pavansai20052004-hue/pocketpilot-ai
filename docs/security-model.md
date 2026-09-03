@@ -110,3 +110,13 @@ Validation reuses the selected-workspace resolver and scanner classification. Ev
 Approval names both the patch ID and exact session revision. Immediately before writing, every hash and hunk is checked again. The engine constructs all outputs in memory, persists PocketPilot-owned originals, flushes same-directory temporary files, and atomically replaces targets. A multi-file failure restores already-replaced originals.
 
 Tests run only after apply and only by selecting an immutable command already created by `SafeCommandRegistry`; no provider string enters argv. Rollback checks the current bytes against the stored patched hash before restoring. Any later developer edit produces `ROLLBACK_CONFLICT` and remains untouched. Event logs contain file names/status metadata, never source or rollback bodies.
+
+## Camera and OCR privacy boundary
+
+Milestone 6 adds phone-local image capability without adding an image endpoint. Camera and gallery assets are passed only to Expo preprocessing and the bundled native ML Kit recognizer. The API request schema still accepts text; mobile source inspection and tests assert that neither image bytes nor `file://`/`content://` URIs enter the request. The server persists `input_source` for provenance but does not persist raw OCR or confirmed raw error text.
+
+Image ownership is explicit. Camera captures and every preprocessed derivative are app-temporary and are deleted best-effort after close, retake, or successful analysis handoff. A gallery selection is marked external and is never deleted; only its derived cache image is removed. Preprocessing emits a fresh JPEG rather than sending original metadata into OCR or transport. Temporary images remain on the phone if deletion fails at the OS boundary, so Android application storage clearing is the recovery mechanism for that residual risk.
+
+OCR output is untrusted user input. Conservative normalization does not guess ambiguous alphanumeric characters. A deterministic postprocessor can trim only a short non-technical prefix before a clear error anchor and records that action as a warning. Secret-like strings and instruction/prompt-injection patterns are highlighted before analysis. No warning automatically edits, executes, uploads, or approves anything, and the user must explicitly confirm editable text before the authenticated analysis call.
+
+The offline-bundled Latin model avoids first-run model download and cloud OCR. The development build still depends on Android/Google ML Kit native compatibility; Expo Go and the web export cannot execute OCR. Physical network-off and cleanup behavior must be verified on the target device before claiming an end-to-end privacy pass.

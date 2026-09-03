@@ -6,7 +6,8 @@
   "scripts": {
     "prestart": "npm run build --workspace=@pocketpilot/shared-types",
     "start": "expo start",
-    "android": "expo start --android",
+    "android": "expo run:android",
+    "android:metro": "expo start --dev-client",
     "web": "expo start --web",
     "export:web": "expo export --platform web --output-dir dist",
     "typecheck": "tsc --noEmit",
@@ -16,12 +17,18 @@
     "@expo/metro-runtime": "57.0.15",
     "@pocketpilot/shared-types": "0.1.0",
     "expo": "57.0.19",
+    "expo-camera": "~57.0.4",
+    "expo-dev-client": "~57.0.18",
+    "expo-file-system": "~57.0.6",
+    "expo-image-manipulator": "~57.0.15",
+    "expo-image-picker": "~57.0.15",
     "expo-secure-store": "~57.0.3",
     "expo-status-bar": "57.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
-    "react-native-web": "0.21.2"
+    "react-native-web": "0.21.2",
+    "rn-mlkit-ocr": "0.3.1"
   },
   "devDependencies": {
     "@types/react": "19.2.18",

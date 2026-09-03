@@ -70,8 +70,16 @@ class AnalysisService:
     async def analyze(
         self, session_id: str, request: AnalyzeSessionRequest
     ) -> AnalysisExecutionResponse:
-        if request.input_type is not ErrorInputType.TEXT:
-            raise UnsupportedAnalysisInputError("Milestone 3 accepts TEXT input only.")
+        accepted_inputs = {
+            ErrorInputType.TEXT,
+            ErrorInputType.CLIPBOARD,
+            ErrorInputType.CAMERA,
+            ErrorInputType.GALLERY,
+        }
+        if request.input_type not in accepted_inputs:
+            raise UnsupportedAnalysisInputError(
+                "Only confirmed text, clipboard, camera OCR, and gallery OCR input is supported."
+            )
         await self._claim(session_id)
         started = time.perf_counter()
         analyzing_revision: int | None = None
@@ -86,7 +94,10 @@ class AnalysisService:
             await self._progress(
                 session_id,
                 AgentEventName.ANALYSIS_REQUESTED,
-                "Local root-cause analysis requested.",
+                (
+                    "Local root-cause analysis requested from "
+                    f"{request.input_type.value.lower()} text."
+                ),
             )
             transitioned = self.sessions.transition(
                 session_id,
@@ -195,6 +206,7 @@ class AnalysisService:
             )
             record = AnalysisRecord(
                 session_id=session_id,
+                input_source=request.input_type,
                 status=AnalysisStatus.COMPLETED,
                 provider=self.provider.name,
                 model=self.provider.model,

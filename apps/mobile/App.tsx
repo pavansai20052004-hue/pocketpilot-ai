@@ -17,8 +17,10 @@ import {
 import type {
   AnalysisRecord,
   DebugSession,
+  ErrorInputType,
   PatchWorkflowView,
   ProviderHealth,
+  VisionInputSource,
 } from '@pocketpilot/shared-types';
 
 import { analyzeText, getAnalysis } from './src/api/analysis';
@@ -30,6 +32,7 @@ import { getProviderHealth, getWorkspace } from './src/api/workspaces';
 import { clearConnection, loadConnection, saveConnection, type StoredConnection } from './src/auth/secureStorage';
 import { LocalWebSocketBridge, type DeviceBridge } from './src/bridge/DeviceBridge';
 import { initialWorkflowState, pipelineStatus, workflowReducer, type WorkflowState } from './src/state/workflow';
+import { VisionScanner } from './src/vision/VisionScanner';
 
 type Tab = 'HOME' | 'DEBUG' | 'SESSIONS' | 'SETTINGS';
 const DEMO_ERROR = `Traceback (most recent call last):
@@ -56,12 +59,14 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
   const [state, dispatch] = useReducer(workflowReducer, initialWorkflowState);
   const [tab, setTab] = useState<Tab>('HOME');
   const [errorText, setErrorText] = useState('');
+  const [inputSource, setInputSource] = useState<ErrorInputType>('TEXT');
   const [languageHint, setLanguageHint] = useState('');
   const [provider, setProvider] = useState<ProviderHealth | null>(null);
   const [history, setHistory] = useState<ReadonlyArray<DebugSession>>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
+  const [visionOpen, setVisionOpen] = useState(false);
   const bridgeRef = useRef<DeviceBridge | null>(null);
   const client = useMemo(() => new ApiClient({ baseUrl: connection.serverAddress, token: connection.token }), [connection]);
   const fade = useRef(new Animated.Value(0)).current;
@@ -134,22 +139,29 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     Animated.timing(fade, { toValue: 1, duration: 260, useNativeDriver: true }).start();
   }, [fade, state.session?.state]);
 
-  async function startAnalysis() {
-    if (!errorText.trim()) { setError('Paste an error or stack trace first.'); return; }
-    if (state.workspace === null) { setError('Select an active workspace on the PocketPilot laptop dashboard.'); return; }
+  async function startAnalysis(text = errorText, source: ErrorInputType = inputSource): Promise<boolean> {
+    if (!text.trim()) { setError('Paste or scan an error first.'); return false; }
+    if (state.workspace === null) { setError('Select an active workspace on the PocketPilot laptop dashboard. Your confirmed OCR text is still on this screen.'); return false; }
     setBusy('analyze'); setError(null); setTab('DEBUG');
     try {
-      const created = await createSession(client, conciseTitle(errorText));
+      const created = await createSession(client, conciseTitle(text));
       const captured = await captureSession(client, created.session);
       dispatch({ type: 'SESSION', session: captured.session });
       dispatch({ type: 'EVENT', event: captured.event });
       bridgeRef.current?.connect(captured.session.id, captured.event.sequence);
-      const result = await analyzeText(client, captured.session, errorText.trim(), languageHint);
+      const result = await analyzeText(client, captured.session, text.trim(), languageHint, source);
       dispatch({ type: 'SESSION', session: result.session });
       dispatch({ type: 'ANALYSIS', analysis: result.analysis });
+      setErrorText(text.trim());
+      setInputSource(source);
       await refreshHistory();
-    } catch (requestError) { handleError(requestError, setError); }
+      return true;
+    } catch (requestError) { handleError(requestError, setError); return false; }
     finally { setBusy(null); }
+  }
+
+  async function analyzeVisionText(text: string, source: VisionInputSource): Promise<boolean> {
+    return startAnalysis(text, source);
   }
 
   async function requestPatch() {
@@ -168,7 +180,7 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     if (!errorText.trim()) { setError('Paste the original error again before retrying this historical session.'); return; }
     setBusy('retry'); setError(null);
     try {
-      const result = await analyzeText(client, state.session, errorText.trim(), languageHint);
+      const result = await analyzeText(client, state.session, errorText.trim(), languageHint, inputSource);
       dispatch({ type: 'SNAPSHOT', session: result.session, events: [], patch: null });
       dispatch({ type: 'ANALYSIS', analysis: result.analysis });
       await refreshHistory();
@@ -229,7 +241,8 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
         <Header connection={state.connection} />
         {error !== null && <ErrorBanner message={error} onRetry={() => void refreshDashboard()} />}
         <Animated.View style={[styles.content, { opacity: fade }]}>
-          {tab === 'HOME' && <HomeScreen state={state} provider={provider} onPaste={() => setTab('DEBUG')} currentSession={state.session} />}
+          {visionOpen ? <VisionScanner onAnalyze={analyzeVisionText} onClose={() => setVisionOpen(false)} /> : <>
+          {tab === 'HOME' && <HomeScreen state={state} provider={provider} onPaste={() => { setInputSource('TEXT'); setTab('DEBUG'); }} onScan={() => setVisionOpen(true)} currentSession={state.session} />}
           {tab === 'DEBUG' && (
             <DebugScreen
               analysis={state.analysis}
@@ -238,13 +251,13 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
               errorText={errorText}
               languageHint={languageHint}
               onApprove={() => void patchAction('approve')}
-              onChangeError={setErrorText}
+              onChangeError={(value) => { setErrorText(value); setInputSource('TEXT'); }}
               onChangeLanguage={setLanguageHint}
               onGenerate={() => void requestPatch()}
-              onLoadDemo={() => { setErrorText(DEMO_ERROR); setLanguageHint('Python'); }}
+              onLoadDemo={() => { setErrorText(DEMO_ERROR); setInputSource('TEXT'); setLanguageHint('Python'); }}
               onReject={() => void patchAction('reject')}
               onRetry={() => void retryAnalysis()}
-              onReset={() => { bridgeRef.current?.disconnect(); dispatch({ type: 'RESET' }); void refreshDashboard(); }}
+              onReset={() => { bridgeRef.current?.disconnect(); dispatch({ type: 'RESET' }); setInputSource('TEXT'); void refreshDashboard(); }}
               onRollback={confirmRollback}
               onStart={() => void startAnalysis()}
               patch={state.patch}
@@ -255,8 +268,9 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
           )}
           {tab === 'SESSIONS' && <SessionsScreen sessions={history} busy={busy === 'history'} onOpen={(id) => void openSession(id)} onRefresh={() => void refreshHistory()} />}
           {tab === 'SETTINGS' && <SettingsScreen connection={connection} demoMode={demoMode} onDemoMode={setDemoMode} onDisconnect={() => void disconnectDevice()} />}
+          </>}
         </Animated.View>
-        <TabBar active={tab} onSelect={setTab} />
+        {!visionOpen && <TabBar active={tab} onSelect={setTab} />}
       </View>
     </SafeAreaView>
   );
@@ -305,7 +319,7 @@ function PairingScreen({ onPaired }: { onPaired: (connection: StoredConnection) 
   );
 }
 
-function HomeScreen({ state, provider, onPaste, currentSession }: { state: WorkflowState; provider: ProviderHealth | null; onPaste: () => void; currentSession: DebugSession | null }) {
+function HomeScreen({ state, provider, onPaste, onScan, currentSession }: { state: WorkflowState; provider: ProviderHealth | null; onPaste: () => void; onScan: () => void; currentSession: DebugSession | null }) {
   return (
     <ScrollView contentContainerStyle={styles.scrollPage}>
       <Text style={styles.homeTitle}>See it. Say it.{`\n`}Fix it.</Text>
@@ -322,7 +336,7 @@ function HomeScreen({ state, provider, onPaste, currentSession }: { state: Workf
         <View style={styles.statusRow}><StatusDot good={provider?.available === true} /><Text style={styles.statusText}>{provider?.available === true ? 'READY' : 'UNAVAILABLE'}</Text></View>
       </Card>
       <View style={styles.actionGrid}>
-        <DisabledAction title="SCAN ERROR" subtitle="Coming in Milestone 6" />
+        <Pressable accessibilityLabel="Scan an error" onPress={onScan} style={styles.actionCard}><Text style={styles.actionIcon}>▣</Text><Text style={styles.actionTitle}>SCAN ERROR</Text><Text style={styles.actionSubtitle}>Camera or screenshot · on-device OCR</Text></Pressable>
         <Pressable accessibilityLabel="Paste an error" onPress={onPaste} style={styles.actionCard}><Text style={styles.actionIcon}>⌘</Text><Text style={styles.actionTitle}>PASTE ERROR</Text><Text style={styles.actionSubtitle}>Start a real debug session</Text></Pressable>
         <DisabledAction title="SPEAK COMMAND" subtitle="Coming later" />
       </View>
@@ -367,7 +381,7 @@ function Pipeline({ steps }: { steps: ReadonlyArray<{ label: string; complete: b
 
 function RootCause({ analysis, busy, canGenerate, onGenerate }: { analysis: AnalysisRecord; busy: boolean; canGenerate: boolean; onGenerate: () => void }) {
   const result = analysis.result;
-  return <Card><View style={styles.titleRow}><Eyebrow>ROOT CAUSE</Eyebrow><Badge label={`${result.confidence} CONFIDENCE`} tone={result.confidence === 'HIGH' ? 'good' : 'warn'} /></View><Text style={styles.cardTitle}>{result.summary}</Text><Text style={styles.rootCause}>{result.root_cause}</Text><Info label="LOCATION" value={`${result.likely_file ?? 'Not established'}${result.likely_line === null ? '' : ` · line ${result.likely_line}`}${result.likely_symbol === null ? '' : ` · ${result.likely_symbol}`}`} /><Info label="WHY" value={result.explanation} /><Info label="REPAIR STRATEGY" value={result.repair_strategy} />{result.evidence.map((item) => <View key={`${item.relative_path}:${item.line ?? 0}`} style={styles.evidence}><Text style={styles.codeText}>{item.relative_path}{item.line === null ? '' : `:${item.line}`}</Text><Text style={styles.evidenceText}>{item.observation}</Text></View>)}{canGenerate && <PrimaryButton accessibilityLabel="Generate fix" disabled={busy} label={busy ? 'GENERATING FIX…' : 'GENERATE FIX'} onPress={onGenerate} />}</Card>;
+  return <Card><View style={styles.titleRow}><View><Eyebrow>ROOT CAUSE</Eyebrow><Text style={styles.sourceNote}>{analysis.input_source} INPUT</Text></View><Badge label={`${result.confidence} CONFIDENCE`} tone={result.confidence === 'HIGH' ? 'good' : 'warn'} /></View><Text style={styles.cardTitle}>{result.summary}</Text><Text style={styles.rootCause}>{result.root_cause}</Text><Info label="LOCATION" value={`${result.likely_file ?? 'Not established'}${result.likely_line === null ? '' : ` · line ${result.likely_line}`}${result.likely_symbol === null ? '' : ` · ${result.likely_symbol}`}`} /><Info label="WHY" value={result.explanation} /><Info label="REPAIR STRATEGY" value={result.repair_strategy} />{result.evidence.map((item) => <View key={`${item.relative_path}:${item.line ?? 0}`} style={styles.evidence}><Text style={styles.codeText}>{item.relative_path}{item.line === null ? '' : `:${item.line}`}</Text><Text style={styles.evidenceText}>{item.observation}</Text></View>)}{canGenerate && <PrimaryButton accessibilityLabel="Generate fix" disabled={busy} label={busy ? 'GENERATING FIX…' : 'GENERATE FIX'} onPress={onGenerate} />}</Card>;
 }
 
 function PatchPanel({ busy, onApprove, onReject, onRetry, onRollback, patch, session }: { busy: string | null; onApprove: () => void; onReject: () => void; onRetry: () => void; onRollback: () => void; patch: PatchWorkflowView; session: DebugSession }) {
@@ -394,7 +408,7 @@ function SessionsScreen({ sessions, busy, onOpen, onRefresh }: { sessions: Reado
 }
 
 function SettingsScreen({ connection, demoMode, onDemoMode, onDisconnect }: { connection: StoredConnection; demoMode: boolean; onDemoMode: (value: boolean) => void; onDisconnect: () => void }) {
-  return <ScrollView contentContainerStyle={styles.scrollPage}><Eyebrow>SETTINGS</Eyebrow><Text style={styles.screenTitle}>Device connection</Text><Card><Info label="LAPTOP ADDRESS" value={connection.serverAddress} /><Info label="DEVICE" value={connection.displayName} /><Info label="DEVICE ID" value={connection.deviceId} /><Text style={styles.securityCopy}>The token is stored in Android secure storage. Source code, secrets, and rollback snapshots remain on the laptop.</Text><SecondaryButton label="DISCONNECT PHONE" onPress={onDisconnect} /></Card><Pressable accessibilityLabel="Toggle demo mode" onPress={() => onDemoMode(!demoMode)} style={styles.settingRow}><View><Text style={styles.settingTitle}>Demo Mode</Text><Text style={styles.cardCopy}>Shows a Load Demo Error action. Backend results stay real.</Text></View><Text style={[styles.toggle, demoMode && styles.toggleOn]}>{demoMode ? 'ON' : 'OFF'}</Text></Pressable><Card><Eyebrow>COMING NEXT</Eyebrow><Text style={styles.cardTitle}>Camera Vision Debugger</Text><Text style={styles.cardCopy}>Camera and OCR are intentionally disabled until Milestone 6. Voice remains planned for a later milestone.</Text></Card></ScrollView>;
+  return <ScrollView contentContainerStyle={styles.scrollPage}><Eyebrow>SETTINGS</Eyebrow><Text style={styles.screenTitle}>Device connection</Text><Card><Info label="LAPTOP ADDRESS" value={connection.serverAddress} /><Info label="DEVICE" value={connection.displayName} /><Info label="DEVICE ID" value={connection.deviceId} /><Text style={styles.securityCopy}>The token is stored in Android secure storage. Source code, secrets, and rollback snapshots remain on the laptop.</Text><SecondaryButton label="DISCONNECT PHONE" onPress={onDisconnect} /></Card><Pressable accessibilityLabel="Toggle demo mode" onPress={() => onDemoMode(!demoMode)} style={styles.settingRow}><View><Text style={styles.settingTitle}>Demo Mode</Text><Text style={styles.cardCopy}>Shows a Load Demo Error action. Backend results stay real.</Text></View><Text style={[styles.toggle, demoMode && styles.toggleOn]}>{demoMode ? 'ON' : 'OFF'}</Text></Pressable><Card><Eyebrow>VISION PRIVACY</Eyebrow><Text style={styles.cardTitle}>On-device OCR</Text><Text style={styles.cardCopy}>Camera and gallery images remain on the phone. Only text you inspect and confirm is sent to the paired laptop. Voice remains planned for a later milestone.</Text></Card></ScrollView>;
 }
 
 function Header({ connection }: { connection: string }) { return <View style={styles.header}><Brand /><View style={styles.connectionPill}><StatusDot good={connection === 'CONNECTED'} /><Text style={styles.connectionText}>{connection}</Text></View></View>; }
@@ -428,7 +442,7 @@ const styles = StyleSheet.create({
   connectionPill: { minHeight: 34, paddingHorizontal: 11, borderWidth: 1, borderColor: '#2A3327', borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 7 }, connectionText: { color: '#9BA596', fontSize: 9, fontWeight: '800' }, dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#596058' }, dotGood: { backgroundColor: '#C8FF3D' },
   pairingPage: { flexGrow: 1, padding: 24, backgroundColor: '#070A0F' }, pairingHero: { marginTop: 62, marginBottom: 32 }, heroTitle: { color: '#F4F7F1', fontSize: 47, lineHeight: 49, letterSpacing: -2.2, fontWeight: '800' }, heroCopy: { color: '#899287', fontSize: 15, lineHeight: 23, marginTop: 16 }, helper: { color: '#687166', fontSize: 12, lineHeight: 19, textAlign: 'center', margin: 20 },
   scrollPage: { padding: 20, paddingBottom: 42, gap: 14 }, homeTitle: { color: '#F4F7F1', fontSize: 43, lineHeight: 46, letterSpacing: -2, fontWeight: '800', marginVertical: 20 }, screenTitle: { color: '#F4F7F1', fontSize: 29, lineHeight: 34, letterSpacing: -1, fontWeight: '800', marginTop: 7, marginBottom: 10 }, titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  card: { backgroundColor: '#0E140F', borderWidth: 1, borderColor: '#273025', borderRadius: 20, padding: 18, gap: 12 }, cardAccent: { borderColor: '#617D32', backgroundColor: '#10190D' }, statusCard: { minHeight: 82, borderRadius: 18, padding: 17, backgroundColor: '#11170F', borderWidth: 1, borderColor: '#2B3528' }, eyebrow: { color: '#778172', fontSize: 9, letterSpacing: 1.5, fontWeight: '800' }, cardTitle: { color: '#EEF2EA', fontSize: 20, lineHeight: 25, fontWeight: '700' }, cardCopy: { color: '#869083', fontSize: 12, lineHeight: 18 }, rootCause: { color: '#BCC6B7', fontSize: 14, lineHeight: 22 }, statusRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }, statusText: { color: '#AAB4A4', fontSize: 10, fontWeight: '800', letterSpacing: 1 }, statusLarge: { color: '#E7ECE3', fontSize: 17, fontWeight: '800' },
+  card: { backgroundColor: '#0E140F', borderWidth: 1, borderColor: '#273025', borderRadius: 20, padding: 18, gap: 12 }, cardAccent: { borderColor: '#617D32', backgroundColor: '#10190D' }, statusCard: { minHeight: 82, borderRadius: 18, padding: 17, backgroundColor: '#11170F', borderWidth: 1, borderColor: '#2B3528' }, eyebrow: { color: '#778172', fontSize: 9, letterSpacing: 1.5, fontWeight: '800' }, sourceNote: { color: '#70806C', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginTop: 5 }, cardTitle: { color: '#EEF2EA', fontSize: 20, lineHeight: 25, fontWeight: '700' }, cardCopy: { color: '#869083', fontSize: 12, lineHeight: 18 }, rootCause: { color: '#BCC6B7', fontSize: 14, lineHeight: 22 }, statusRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }, statusText: { color: '#AAB4A4', fontSize: 10, fontWeight: '800', letterSpacing: 1 }, statusLarge: { color: '#E7ECE3', fontSize: 17, fontWeight: '800' },
   field: { minHeight: 52, borderWidth: 1, borderColor: '#30392D', borderRadius: 12, backgroundColor: '#080C09', color: '#E5EAE1', paddingHorizontal: 15, fontSize: 14 }, errorInput: { minHeight: 220, borderWidth: 1, borderColor: '#30392D', borderRadius: 14, backgroundColor: '#080C09', color: '#DCE3D8', padding: 16, fontSize: 13, lineHeight: 20, fontFamily: 'monospace' }, inlineError: { color: '#FF9A85', fontSize: 12, lineHeight: 18 },
   primaryButton: { minHeight: 54, borderRadius: 13, backgroundColor: '#C8FF3D', alignItems: 'center', justifyContent: 'center', marginTop: 2 }, primaryText: { color: '#0B1008', fontSize: 12, fontWeight: '900', letterSpacing: 1 }, secondaryButton: { minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: '#465043', alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: '#CCD4C8', fontSize: 11, fontWeight: '800', letterSpacing: 1 }, disabled: { opacity: 0.42 }, pressed: { transform: [{ scale: 0.99 }] },
   actionGrid: { gap: 10 }, actionCard: { minHeight: 104, borderRadius: 17, borderWidth: 1, borderColor: '#30402A', backgroundColor: '#11180F', padding: 16, justifyContent: 'center' }, disabledAction: { opacity: 0.48, backgroundColor: '#0B0F0C' }, actionIcon: { color: '#C8FF3D', fontSize: 20, marginBottom: 7 }, actionTitle: { color: '#EEF2EA', fontSize: 12, letterSpacing: 1, fontWeight: '900' }, actionSubtitle: { color: '#727B6E', fontSize: 11, marginTop: 4 },

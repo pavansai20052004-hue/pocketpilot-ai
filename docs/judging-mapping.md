@@ -1,16 +1,16 @@
 # Judging mapping
 
-This document maps the product strategy to evidence we intend to demonstrate. Only the Phase A foundation row is currently implemented; later rows are delivery commitments, not present-tense claims.
+This document maps the product strategy to evidence we intend to demonstrate. Status is evidence-based: software paths may be implemented while physical-device proof remains pending.
 
 | Judging signal | Planned PocketPilot evidence | Delivery milestone | Current status |
 | --- | --- | --- | --- |
 | Product quality | Phone-first approval flow, readable diff, explicit progress, rollback, polished success state | M4–M10 | Planned |
 | Technical depth | Typed state machine, persistent sequenced events, reconnect recovery, bounded context retrieval, provider abstraction, validated unified diffs | M2–M4 | M2 state/event control plane implemented |
-| Creative smartphone usage | Camera-led error capture, editable device OCR, constrained voice actions, phone approval | M5, M7, M8 | Planned |
+| Creative smartphone usage | Camera-led error capture, editable device OCR, constrained voice actions, phone approval | M5–M8 | Camera/OCR and phone approval implemented; physical OCR and voice pending |
 | AI / local open source | Configurable Ollama coding model, structured outputs, deterministic offline fallback clearly disclosed | M3 | Planned |
 | Phone ↔ laptop workflow | Replaceable `DeviceBridge`, local Wi-Fi WebSocket, reconnect recovery, live event timeline | M2, M5 | Planned |
 | Demo reliability | Resettable broken repositories, genuine tests, readiness checks, offline mode, bounded retries | M6, M9, M12 | Planned |
-| Novel developer usefulness | Move from photographed laptop failure to reviewed and verified local patch without abandoning the phone | M6–M10 | Planned |
+| Novel developer usefulness | Move from photographed laptop failure to reviewed and verified local patch without abandoning the phone | M6–M10 | Software flow implemented; physical golden path pending |
 | Safety and trust | One workspace capability, sensitive-file protection, explicit command action, non-shell allowlisted runner; immutable patch approval follows in M4 | M1, M4 | M1 execution boundary implemented |
 | Feasibility | Runnable Expo, FastAPI, and Vite foundations sharing strict contracts | M0 | Implemented in Phase A |
 | iQOO differentiation | Verified Office Kit adapter if official access is available; robust WebSocket fallback regardless | M11 | Not implemented; documentation required first |

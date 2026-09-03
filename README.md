@@ -4,13 +4,13 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 5 authenticated phone workflow. The Android-first Expo app pairs with the laptop, controls text analysis, reviews and approves real diffs, follows live verification, restores sessions after reconnect, and can safely roll back. OCR, voice, and iQOO Office Kit are not implemented yet.
+> Current phase: Milestone 6 Camera Vision Debugger is implemented and awaiting physical Android validation. The Android development build captures or imports an error image, preprocesses it, runs offline on-device OCR, requires editable confirmation, and sends only confirmed text to the paired laptop. Voice and iQOO Office Kit are not implemented.
 
 ## Foundation architecture
 
 | Component | Technology | Current responsibility |
 | --- | --- | --- |
-| Phone client | Expo, React Native, TypeScript | Primary authenticated debug, approval, verification, history, and rollback UI |
+| Phone client | Expo development build, React Native, TypeScript, ML Kit | Camera/gallery OCR, authenticated debug, approval, verification, history, and rollback UI |
 | Desktop dashboard | Vite, React, TypeScript | Workspace selection, pairing, device revocation, logs, and fallback UI |
 | Local agent | FastAPI, Pydantic, Python | Secure repository actions, persistent sessions, bounded local analysis |
 | Shared contracts | TypeScript package | Cross-client workspace, repository, and command contracts |
@@ -55,9 +55,11 @@ Use `127.0.0.1` instead of `0.0.0.0` when phone access is not needed. LAN mode a
 1. Open the dashboard URL printed by Vite and inspect one explicit workspace (for the demo, use `demo/python-broken-app`).
 2. In **Device Connection**, generate a six-digit pairing code and note the displayed laptop address.
 3. Start Expo, open it on Android, enter the address and code, and connect.
-4. On the phone choose **Paste Error**, optionally enable Demo Mode to load the fixture, then analyze, generate, review, approve, verify, or undo the real fix.
+4. On the phone choose **Scan Error** for camera/gallery OCR or **Paste Error** for text, confirm the input, then analyze, generate, review, approve, verify, or undo the real fix.
 
 The phone cannot browse or select laptop paths. Pairing codes expire after five minutes, allow five guesses, and are single-use. Android stores the opaque device token in Expo SecureStore; the laptop persists only its SHA-256 hash.
+
+Camera OCR uses native code and therefore requires an Android development build, not Expo Go. From `apps/mobile`, run `npm run android` with Android SDK/ADB and a device configured, then use `npm run android:metro` for later Metro sessions. See [the vision debugger guide](docs/vision-debugger.md).
 
 ## Desktop-agent API
 
@@ -133,8 +135,10 @@ docs/              Architecture and hackathon documentation
 - Rollback refuses to overwrite files changed after PocketPilot's patch.
 - LAN API and WebSocket clients require an unexpired, non-revoked bearer token; loopback remains trusted for the desktop dashboard.
 - Pairing codes are random, memory-only, expiring, single-use, and guess-limited. Device tokens are returned once and stored only as hashes server-side.
+- Camera/gallery OCR runs on the phone. Image URIs and bytes never enter the agent API; only user-confirmed text and `CAMERA`/`GALLERY` provenance do.
+- Camera and processed cache files are deleted after use. Gallery originals are external inputs and are never deleted.
 
-See [the mobile guide](docs/mobile-app.md), [local AI guide](docs/local-ai.md), [patch-engine guide](docs/patch-engine.md), and [security model](docs/security-model.md).
+See [the mobile guide](docs/mobile-app.md), [vision debugger guide](docs/vision-debugger.md), [local AI guide](docs/local-ai.md), [patch-engine guide](docs/patch-engine.md), and [security model](docs/security-model.md).
 
 ## License
 

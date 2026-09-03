@@ -27,7 +27,7 @@ def _event_until(socket: WebSocketTestSession, expected_name: str) -> tuple[int,
     return last_sequence, names
 
 
-def test_phone_like_pair_analyze_patch_verify_rollback_and_reconnect(
+def test_phone_like_camera_text_analyze_patch_verify_rollback_and_reconnect(
     tmp_path: Path,
 ) -> None:
     source_demo = Path(__file__).parents[3] / "demo" / "python-broken-app"
@@ -90,7 +90,7 @@ def test_phone_like_pair_analyze_patch_verify_rollback_and_reconnect(
                 f"/api/v1/sessions/{session_id}/analyze",
                 headers=headers,
                 json={
-                    "input_type": "TEXT",
+                    "input_type": "CAMERA",
                     "raw_text": (workspace / "fixtures" / "traceback.txt").read_text(
                         encoding="utf-8"
                     ),
@@ -105,6 +105,7 @@ def test_phone_like_pair_analyze_patch_verify_rollback_and_reconnect(
             sequence, analysis_events = _event_until(socket, "root_cause_found")
             timings["event_reconcile_ms"] = round((perf_counter() - start) * 1000)
             assert analyzed["session"]["state"] == "ROOT_CAUSE_FOUND"
+            assert analyzed["analysis"]["input_source"] == "CAMERA"
             assert "analysis_provider_started" in analysis_events
 
             start = perf_counter()
@@ -155,4 +156,4 @@ def test_phone_like_pair_analyze_patch_verify_rollback_and_reconnect(
         assert recovered["session"]["state"] == "ROLLED_BACK"
         assert recovered["patch"]["status"] == "ROLLED_BACK"
 
-    print(f"M5_SMOKE_METRICS={json.dumps(timings, sort_keys=True)}")
+    print(f"M6_VISION_DEBUG_SMOKE_METRICS={json.dumps(timings, sort_keys=True)}")

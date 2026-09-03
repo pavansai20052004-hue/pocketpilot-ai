@@ -1,0 +1,7 @@
+{
+  "python-traceback-clear.png": ["Traceback", "user_service.py", "line 18", "get_user_name", "KeyError", "42"],
+  "java-exception-clear.png": ["NullPointerException", "UserService", "displayName", "UserService.java", "12", "Main.java"],
+  "typescript-error-clear.png": ["TypeError", "Cannot read properties", "undefined", "getUserName", "src/user.ts", "42"],
+  "python-traceback-low-contrast.png": ["Traceback", "user_service.py", "KeyError", "42"],
+  "java-exception-rotated.png": ["NullPointerException", "UserService", "displayName", "UserService.java", "12"]
+}

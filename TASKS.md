@@ -9,8 +9,9 @@ This is the execution checklist for the hackathon prototype. A milestone is comp
 - **Complete:** Milestone 2 — debug session API and controlled state machine
 - **Complete:** Milestone 3 — local analysis provider
 - **Complete:** Milestone 4 — patch lifecycle
-- **Complete, awaiting approval:** Milestone 5 — authenticated mobile bridge and complete text-debug workflow
-- **Next after approval:** Milestone 6 — Camera Vision Debugger / OCR
+- **Complete:** Milestone 5 — authenticated mobile bridge and complete text-debug workflow
+- **Implemented, physical Android validation pending:** Milestone 6 — Camera Vision Debugger / OCR
+- **Next after approval:** Milestone 7 — constrained voice actions
 
 ## Dependency path
 
@@ -173,9 +174,27 @@ Verification evidence (2026-09-03):
 
 Depends on: M5.
 
-- Camera capture, preprocessing, device OCR adapter, confidence, and editable extraction.
+- [x] Android camera UI with permission recovery, flash, framing guide, capture, preview, rotate, retake, and centered crop.
+- [x] Gallery/screenshot input with explicit ownership that prevents deletion of originals.
+- [x] Expo native development build with offline-bundled Latin ML Kit OCR and typed provider errors.
+- [x] Separate raw/normalized OCR contracts, conservative technical normalizer, error postprocessor, and deterministic quality heuristics.
+- [x] Mandatory editable review with poor-quality, secret, and prompt-injection warnings before analysis.
+- [x] `CAMERA`/`GALLERY` provenance through the authenticated analysis API and durable result.
+- [x] Best-effort deletion of temporary camera/preprocessed files after use, close, retake, or successful handoff.
+- [x] Deterministic project-owned Python/Java/TypeScript image fixtures including low contrast and rotation.
+- [x] Mock capture/OCR providers and tests for state, preprocessing, cleanup, normalization, quality, privacy, and API handoff.
+- [ ] Physical Android camera/gallery/OCR and camera-to-fix run (no SDK, ADB, emulator, or attached phone on the verification host).
 
 Acceptance criteria: terminal screenshot fixture produces editable `ErrorContext`; low confidence never advances without review.
+
+Verification evidence (2026-09-03):
+
+- `npm run check`: ESLint and strict TypeScript passed; Vitest passed 37 tests (desktop 2, mobile 29, shared contracts 6); desktop production build and Expo web export passed.
+- Agent Ruff passed; pytest passed 94 tests with 4 documented environment/opt-in skips.
+- Expo dependency check passed, config plugins resolved, and Expo Doctor passed 21/21 checks.
+- Authenticated `CAMERA`-source smoke passed pairing → analysis → patch → approval → real pytest → rollback → reconnect against a temporary project (analysis 69 ms, apply/test 529 ms).
+- Browser QA paired to the local agent and verified the responsive Scan Error entry/privacy UI.
+- Native image accuracy and the physical golden path remain explicitly unverified until the development build runs on Android hardware.
 
 ### M7 — Voice actions (P1)
 

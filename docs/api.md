@@ -106,7 +106,7 @@ Check the configured provider without downloading anything:
 GET /api/v1/analysis/provider
 ```
 
-Submit TEXT input only after the session reaches `CAPTURED`:
+Submit confirmed text after the session reaches `CAPTURED`. `input_type` accepts `TEXT`, `CLIPBOARD`, `CAMERA`, or `GALLERY`; `VOICE` remains rejected. Camera/gallery requests contain text, never image bytes or URIs:
 
 ```http
 POST /api/v1/sessions/{session_id}/analyze
@@ -122,7 +122,7 @@ Content-Type: application/json
 }
 ```
 
-The synchronous response contains the final `ROOT_CAUSE_FOUND` session and persisted analysis. WebSocket subscribers receive `analysis_requested`, parsing/context/provider/validation progress, and `root_cause_found`. Progress summaries contain paths and line ranges, never source bodies.
+The synchronous response contains the final `ROOT_CAUSE_FOUND` session and persisted analysis. `analysis.input_source` preserves the submitted provenance. WebSocket subscribers receive `analysis_requested`, parsing/context/provider/validation progress, and `root_cause_found`. Progress summaries contain source type, paths, and line ranges, never raw OCR text, image references, or source bodies.
 
 Fetch the durable result with `GET /api/v1/sessions/{session_id}/analysis`. Typed provider failures use `PROVIDER_UNAVAILABLE`, `MODEL_NOT_FOUND`, `TIMEOUT`, or `INVALID_RESPONSE`, transition an active analysis to `FAILED`, and return an appropriate 503, 504, or 422 response. Stale or simultaneous requests return 409.
 

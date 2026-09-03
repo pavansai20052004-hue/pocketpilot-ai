@@ -200,3 +200,29 @@ Repository access stays entirely on the laptop. The desktop explicitly selects o
 `DeviceBridge` separates device transport from UI state. `LocalWebSocketBridge` is the production/demo path and delegates authenticated connection, cursor tracking, duplicate suppression, and bounded 1/2/4/8/15-second reconnects to `PocketPilotSocket`. `MockDeviceBridge` supports deterministic UI development. `OfficeKitBridge` is an explicit throwing stub and does not claim vendor integration.
 
 HTTP remains authoritative for actions and revisions. SQLite remains authoritative for state and events. WebSocket snapshots reconcile after Wi-Fi loss, backgrounding, or agent restart; `AppState` foregrounding reconnects and refreshes the active session. The Expo app uses a reducer for connection, workspace, session, event, analysis, patch, and validation state rather than embedding network state in individual screens.
+
+## Milestone 6 vision boundary
+
+```text
+CAMERA / GALLERY
+       │ local URI
+       ▼
+GUIDE CROP + ROTATE + DOWNSAMPLE
+       │ temporary JPEG, metadata stripped
+       ▼
+BUNDLED ML KIT OCR (ON PHONE)
+       │ raw text + block geometry
+       ▼
+NORMALIZE → QUALITY / PRIVACY WARNINGS → EDITABLE REVIEW
+       │ explicit user confirmation; text + source only
+       ▼
+AUTHENTICATED ANALYSIS API → EXISTING DEBUG / PATCH PIPELINE
+```
+
+`CaptureSource` separates camera, gallery, and deterministic mock acquisition. Ownership is part of every captured-image value: camera outputs are app-temporary while gallery images are external originals. `OCRProvider` separates the production on-device ML Kit module from deterministic tests. Neither abstraction exposes network behavior.
+
+Preprocessing creates an app-owned cache derivative for both sources and can center-crop the visible guide, rotate by 90-degree increments, and bound the longest dimension. The production OCR adapter runs the bundled Latin recognizer. Raw recognition remains separate from conservative normalization and postprocessing. Because the native API does not expose calibrated confidence, PocketPilot reports an honest deterministic quality score based on text length, technical tokens, line structure, and corruption markers; it does not label that score as model confidence.
+
+Every recognition outcome reaches editable review, including high-quality text. Poor/empty output cannot advance without the user adding visible text. Secret-like and prompt-injection-like strings produce prominent warnings but remain editable data, never instructions. The existing analysis request receives only the confirmed text and `CAMERA`/`GALLERY` provenance. Image bytes, local URIs, OCR blocks, and raw OCR are absent from the HTTP contract and server persistence.
+
+Closing, retaking, or completing a successful handoff performs best-effort deletion of camera and processed cache files. External gallery originals are never deletion targets. A failed/offline handoff keeps the editable draft and local files available for retry.

@@ -233,7 +233,49 @@ export interface CommandRun {
   readonly completed_at: string;
 }
 
-export type ErrorInputType = 'TEXT' | 'CAMERA' | 'VOICE' | 'CLIPBOARD';
+export type ErrorInputType = 'TEXT' | 'CAMERA' | 'GALLERY' | 'VOICE' | 'CLIPBOARD';
+export type VisionInputSource = 'CAMERA' | 'GALLERY';
+export type OcrQualityLevel = 'GOOD' | 'REVIEW' | 'POOR';
+export type OcrWarningCode =
+  | 'EMPTY_TEXT'
+  | 'SHORT_TEXT'
+  | 'LOW_TECHNICAL_SIGNAL'
+  | 'NOISY_TEXT'
+  | 'POSSIBLE_SECRET'
+  | 'POSSIBLE_PROMPT_INJECTION'
+  | 'TEXT_TRIMMED_TO_ERROR';
+
+export interface OcrBoundingBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface OcrTextBlock {
+  readonly text: string;
+  readonly bounding_box: OcrBoundingBox | null;
+  readonly confidence: number | null;
+}
+
+export interface OcrQuality {
+  readonly level: OcrQualityLevel;
+  readonly score: number;
+  readonly warnings: ReadonlyArray<OcrWarningCode>;
+}
+
+export interface OcrResult {
+  readonly source: VisionInputSource;
+  readonly raw_text: string;
+  readonly normalized_text: string;
+  readonly blocks: ReadonlyArray<OcrTextBlock>;
+  readonly quality: OcrQuality;
+  readonly image_width: number;
+  readonly image_height: number;
+  readonly orientation_degrees: 0 | 90 | 180 | 270;
+  readonly duration_ms: number;
+  readonly created_at: string;
+}
 export type AnalysisStatus = 'COMPLETED' | 'PROVIDER_UNAVAILABLE' | 'MODEL_NOT_FOUND' | 'TIMEOUT' | 'INVALID_RESPONSE';
 export type AnalysisConfidence = 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -258,6 +300,7 @@ export interface AnalysisResult {
 export interface AnalysisTimings { readonly parse_ms: number; readonly context_ms: number; readonly provider_ms: number; readonly validation_ms: number; readonly total_ms: number; }
 export interface AnalysisRecord {
   readonly session_id: string;
+  readonly input_source: ErrorInputType;
   readonly status: AnalysisStatus;
   readonly provider: string;
   readonly model: string;

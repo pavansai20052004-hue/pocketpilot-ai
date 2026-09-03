@@ -2,9 +2,9 @@
 
 ## Product role
 
-The Android app is the primary PocketPilot experience. It pairs to a local laptop agent, displays the laptop-approved workspace, starts text debugging sessions, follows real events, reviews actual unified diffs, approves or rejects a revision-bound patch, displays real validation, and requests conflict-safe rollback. The desktop remains the workspace and device-administration surface.
+The Android app is the primary PocketPilot experience. It pairs to a local laptop agent, captures or imports an error for on-device OCR, accepts pasted text, follows real events, reviews actual unified diffs, approves or rejects a revision-bound patch, displays real validation, and requests conflict-safe rollback. The desktop remains the workspace and device-administration surface.
 
-Camera/OCR, voice control, and iQOO Office Kit are not implemented. Their buttons are disabled and labelled with their future milestone.
+Camera/OCR is implemented for a native development build. Voice control and iQOO Office Kit remain visibly unimplemented.
 
 ## Architecture
 
@@ -13,8 +13,11 @@ Camera/OCR, voice control, and iQOO Office Kit are not implemented. Their button
 - `src/bridge/DeviceBridge.ts`: `LocalWebSocketBridge`, dev-only `MockDeviceBridge`, and a clearly unimplemented `OfficeKitBridge` stub.
 - `src/bridge/PocketPilotSocket.ts`: authentication, session subscription, last sequence, duplicate suppression, snapshot reconciliation, and bounded reconnect.
 - `src/state/workflow.ts`: reducer-owned connection, workspace, active session, events, analysis, patch, and verification state.
+- `src/vision`: capture/OCR abstractions, camera/gallery UI, preprocessing, normalization, quality/privacy checks, editable review, and cache cleanup.
 
 Navigation uses four touch-friendly tabs: Home, Debug, Sessions, and Settings. The Debug tab contains the session flow so analysis, patch, test, success/failure, and rollback states remain coherent.
+
+**Scan Error** opens a local vision flow above normal tab navigation. Camera permission denial offers retry, gallery fallback, and Android Settings recovery when the OS no longer allows prompting. A captured image remains local through guide crop/rotation and ML Kit recognition. The user must edit or confirm the extracted text before `ANALYZE ERROR` can call the existing session API.
 
 ## Pairing
 
@@ -45,7 +48,9 @@ Select `demo/python-broken-app` on the desktop. Enable Demo Mode in mobile Setti
 ## Physical Android run
 
 ```powershell
-npm run dev:mobile
+cd apps/mobile
+npm run android
+npm run android:metro
 ```
 
-Open the Expo QR code on the iQOO phone. Verify pairing, workspace status, root-cause scrolling, horizontal/collapsible diff rendering, approval, verification, undo, Wi-Fi interruption recovery, and foreground recovery. A physical device is not required by CI; report it as skipped when hardware is unavailable rather than inferring a pass from the web export.
+The first command creates/installs the native development build and needs Android SDK, ADB, and an attached phone or emulator. Expo Go cannot load the native OCR module. Verify permission grant/denial/settings, flash, camera capture, gallery selection, crop/rotate, all five fixtures in `demo/vision-fixtures`, editable review, offline behavior, temp cleanup, pairing, root cause, diff approval, real verification, undo, Wi-Fi interruption recovery, and foreground recovery. Report hardware checks as skipped when unavailable rather than inferring a pass from the web export.

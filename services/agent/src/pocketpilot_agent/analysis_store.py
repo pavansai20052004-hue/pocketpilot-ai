@@ -11,6 +11,7 @@ from pocketpilot_agent.models import (
     AnalysisStatus,
     AnalysisTimings,
     ContextFileSummary,
+    ErrorInputType,
     ParsedError,
 )
 
@@ -27,6 +28,7 @@ class AnalysisStore:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS analysis_results (
                     session_id TEXT PRIMARY KEY,
+                    input_source TEXT NOT NULL DEFAULT 'TEXT',
                     status TEXT NOT NULL,
                     provider TEXT NOT NULL,
                     model TEXT NOT NULL,
@@ -48,16 +50,23 @@ class AnalysisStore:
                     "ALTER TABLE analysis_results ADD COLUMN "
                     "context_truncated INTEGER NOT NULL DEFAULT 0"
                 )
+            if "input_source" not in columns:
+                connection.execute(
+                    "ALTER TABLE analysis_results ADD COLUMN "
+                    "input_source TEXT NOT NULL DEFAULT 'TEXT'"
+                )
 
     def save(self, record: AnalysisRecord) -> None:
         with self._connect() as connection:
             connection.execute(
                 """INSERT INTO analysis_results
-                (session_id, status, provider, model, parsed_error_json, context_files_json,
-                 context_truncated, result_json, timings_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (session_id, input_source, status, provider, model,
+                 parsed_error_json, context_files_json, context_truncated,
+                 result_json, timings_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(session_id) DO UPDATE SET status=excluded.status,
-                provider=excluded.provider, model=excluded.model,
+                input_source=excluded.input_source, provider=excluded.provider,
+                model=excluded.model,
                 parsed_error_json=excluded.parsed_error_json,
                 context_files_json=excluded.context_files_json,
                 context_truncated=excluded.context_truncated,
@@ -65,6 +74,7 @@ class AnalysisStore:
                 created_at=excluded.created_at""",
                 (
                     record.session_id,
+                    record.input_source,
                     record.status,
                     record.provider,
                     record.model,
@@ -86,6 +96,7 @@ class AnalysisStore:
             raise AnalysisNotFoundError("No completed analysis exists for this session.")
         return AnalysisRecord(
             session_id=row["session_id"],
+            input_source=ErrorInputType(row["input_source"]),
             status=AnalysisStatus(row["status"]),
             provider=row["provider"],
             model=row["model"],
