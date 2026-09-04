@@ -4,7 +4,7 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 6 Camera Vision Debugger is implemented and awaiting physical Android validation. The Android development build captures or imports an error image, preprocesses it, runs offline on-device OCR, requires editable confirmation, and sends only confirmed text to the paired laptop. Voice and iQOO Office Kit are not implemented.
+> Current phase: Milestone 6 Camera Vision Debugger has passed physical Android validation. The Android development build captures or imports an error image, preprocesses it, runs offline on-device OCR, requires editable confirmation, and sends only confirmed text to the paired laptop. Voice and iQOO Office Kit are not implemented.
 
 ## Foundation architecture
 
@@ -59,7 +59,26 @@ Use `127.0.0.1` instead of `0.0.0.0` when phone access is not needed. LAN mode a
 
 The phone cannot browse or select laptop paths. Pairing codes expire after five minutes, allow five guesses, and are single-use. Android stores the opaque device token in Expo SecureStore; the laptop persists only its SHA-256 hash.
 
-Camera OCR uses native code and therefore requires an Android development build, not Expo Go. From `apps/mobile`, run `npm run android` with Android SDK/ADB and a device configured, then use `npm run android:metro` for later Metro sessions. See [the vision debugger guide](docs/vision-debugger.md).
+Camera OCR uses native code and therefore requires an Android development build, not Expo Go. Without a local Android SDK, authenticate with Expo and create the internal development APK from `apps/mobile`:
+
+```powershell
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile development
+npx expo start --dev-client --lan
+```
+
+The physical phone installs the APK from the EAS build page and connects to the Metro server on the same private Wi-Fi. A local Android SDK/ADB workflow remains available through `npm run android` followed by `npm run android:metro`. See [the vision debugger guide](docs/vision-debugger.md).
+
+## Physical Android verification
+
+Milestone 6 passed on a physical Android handset on 2026-09-04 using EAS development build `1a716796-9260-44bd-a463-80faed4dcceb`. The device model and Android version were not recorded, and no personal device identifier is stored.
+
+- The app launched without a native-module crash, paired over private LAN, stored its token, and reconnected its authenticated WebSocket after a full app restart.
+- Camera permission, live preview, flash toggle, portrait and landscape capture, preview, retake, rotate controls, guided crop, full-image preprocessing, and native ML Kit OCR ran on hardware.
+- A physical photo of real pytest terminal output completed OCR in 375 ms and recovered 7/7 selected critical tokens: `TypeError`, `NoneType`, `user_service.py`, `5`, `test_missing_user_uses_fallback`, `get_user_name`, and `Unknown`.
+- Confirmed camera text reached root cause, a one-file diff, explicit approval, a real `2 passed` result in 530 ms, and successful rollback to the original failing test.
+- A blank capture returned `POOR · 0/100` in 830 ms, showed “No readable text was found,” and disabled analysis.
+- Request inspection showed only user-confirmed text plus `CAMERA` provenance; no image bytes, Base64, multipart data, or camera URI reached the laptop.
 
 ## Desktop-agent API
 

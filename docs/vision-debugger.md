@@ -4,7 +4,7 @@
 
 Milestone 6 implements an Android-first camera/gallery → on-device OCR → editable confirmation → existing debug workflow. It does not implement voice, arbitrary OCR actions, cloud vision, live frame recognition, or iQOO Office Kit.
 
-The JavaScript/TypeScript flow, server provenance, fixtures, Expo configuration, web bundle, and deterministic tests are verified. This development host has no Android SDK, ADB, emulator, or attached phone, so native OCR accuracy and the physical golden path remain pending.
+The JavaScript/TypeScript flow, server provenance, fixtures, Expo configuration, web bundle, deterministic tests, native OCR, and the physical camera golden path are verified. The development host still has no Android SDK, ADB, or emulator; the hardware run used an EAS internal development APK on a real Android phone.
 
 ## Native stack
 
@@ -18,7 +18,15 @@ These are native modules. Expo Go is unsupported for the OCR path. The web expor
 
 ## Build and run
 
-Install Android Studio/SDK platform tools separately, enable USB debugging on the test phone, and confirm `adb devices` lists it. From the repository:
+When no local Android SDK is installed, authenticate and build the configured internal development APK from `apps/mobile`:
+
+```powershell
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile development
+npx expo start --dev-client --lan
+```
+
+Install the APK from the EAS build page, keep the phone and laptop on the same private Wi-Fi, and connect the development client to the Metro LAN address. For a local native workflow, install Android Studio/SDK platform tools separately, enable USB debugging, confirm `adb devices` lists the phone, and run:
 
 ```powershell
 cd apps/mobile
@@ -80,7 +88,20 @@ Normalization is deliberately conservative: line endings, non-breaking spaces, f
 - Offline laptop handoff preserves the review draft, then succeeds after reconnect.
 - One real camera capture reaches root cause, patch review, explicit approval, a real passing test, and rollback.
 
-Until this checklist is run on hardware, report Milestone 6 as PARTIAL.
+## Physical verification result
+
+Milestone 6 passed its critical physical acceptance run on 2026-09-04 using EAS development build `1a716796-9260-44bd-a463-80faed4dcceb`. The device model and Android version were unavailable and no personal identifier was recorded.
+
+- Application launch, native-module loading, LAN pairing, token persistence, authenticated WebSocket, background/restart reconnect, and coherent session recovery passed.
+- Camera permission, preview, flash, capture, retake, portrait/landscape handling, guided crop, full-image processing, and native ML Kit execution passed.
+- A physical photo of live pytest output recovered 7/7 selected critical tokens in 375 ms: `TypeError`, `NoneType`, `user_service.py`, `5`, `test_missing_user_uses_fallback`, `get_user_name`, and `Unknown`.
+- Full-image OCR included unrelated Windows UI text and distorted non-critical assertion punctuation. The first guided capture took 1176 ms and required manual filename/quote cleanup; editable confirmation prevented those errors from reaching analysis.
+- A blank capture took 830 ms, returned `POOR · 0/100`, displayed no-readable-text guidance, disabled Analyze, and allowed discard/retake.
+- Request and event inspection confirmed that no image request occurred before confirmation and only corrected text with `CAMERA` provenance reached the agent.
+- The physical golden path reached a correct one-file proposal, explicit approval, `2 passed` in 530 ms, `FIX VERIFIED`, and rollback. Exact original bytes and the expected failing test were restored.
+- A phone system/development overlay obscured the top-right flash/close controls. The verification commit reserves a right-side exclusion area; hot-reload verification confirmed the controls remained accessible.
+
+Gallery import, denial/settings recovery, offline OCR in airplane mode, cache-file inspection, and the complete fixture matrix were not physically exercised in this focused critical-path run. They remain implementation/test coverage rather than hardware claims.
 
 ## Known limitations
 
@@ -89,3 +110,4 @@ Until this checklist is run on hardware, report Milestone 6 as PARTIAL.
 - The guide crop is a deterministic centered rectangle rather than draggable crop handles.
 - Quality is a transparent heuristic, not calibrated OCR confidence.
 - Best-effort cache deletion can fail if Android has already removed or locked a file.
+- Full-image capture can include unrelated operating-system UI; guided crop and mandatory editing are recommended for terminal photographs.

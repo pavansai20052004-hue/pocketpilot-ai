@@ -4,7 +4,7 @@
 
 The Android app is the primary PocketPilot experience. It pairs to a local laptop agent, captures or imports an error for on-device OCR, accepts pasted text, follows real events, reviews actual unified diffs, approves or rejects a revision-bound patch, displays real validation, and requests conflict-safe rollback. The desktop remains the workspace and device-administration surface.
 
-Camera/OCR is implemented for a native development build. Voice control and iQOO Office Kit remain visibly unimplemented.
+Camera/OCR is implemented and physically verified in a native Android development build. Voice control and iQOO Office Kit remain visibly unimplemented.
 
 ## Architecture
 
@@ -47,10 +47,29 @@ Select `demo/python-broken-app` on the desktop. Enable Demo Mode in mobile Setti
 
 ## Physical Android run
 
+Without a local Android SDK, use the checked-in EAS development profile:
+
+```powershell
+cd apps/mobile
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile development
+npx expo start --dev-client --lan
+```
+
+Install the internal APK from its EAS build page. Keep the phone and laptop on the same private Wi-Fi, start the agent with `--host 0.0.0.0`, and enter the laptop's private IPv4 address during pairing.
+
+For the Android SDK/ADB path:
+
 ```powershell
 cd apps/mobile
 npm run android
 npm run android:metro
 ```
 
-The first command creates/installs the native development build and needs Android SDK, ADB, and an attached phone or emulator. Expo Go cannot load the native OCR module. Verify permission grant/denial/settings, flash, camera capture, gallery selection, crop/rotate, all five fixtures in `demo/vision-fixtures`, editable review, offline behavior, temp cleanup, pairing, root cause, diff approval, real verification, undo, Wi-Fi interruption recovery, and foreground recovery. Report hardware checks as skipped when unavailable rather than inferring a pass from the web export.
+The first local command creates/installs the native development build and needs Android SDK, ADB, and an attached phone or emulator. Expo Go cannot load the native OCR module.
+
+The focused physical run on 2026-09-04 used EAS development build `1a716796-9260-44bd-a463-80faed4dcceb`. A real Android phone launched and paired, camera/flash/capture/retake/portrait/landscape/crop/full-image processing worked, and native terminal OCR recovered 7/7 selected critical tokens in 375 ms. Confirmed camera text completed root cause → patch review → explicit approval → real `2 passed` verification in 530 ms → exact rollback, then recovered the `ROLLED_BACK` session after restart. A blank capture returned `POOR · 0/100` in 830 ms and disabled Analyze. The handset model and Android version were not recorded.
+
+The hardware run found one usability issue: a floating phone system/development overlay covered the top-right flash/close target. The camera and scanner headers now reserve that area, and the phone confirmed the controls were accessible after hot reload. Full-image OCR also captured unrelated Windows UI and corrupted some non-critical punctuation, so guided crop and editable review remain important.
+
+Gallery import, denial/settings recovery, airplane-mode OCR, direct cache-file inspection, and every fixture in `demo/vision-fixtures` were not part of this focused physical run. Report those checks separately rather than inferring them from the verified camera golden path.

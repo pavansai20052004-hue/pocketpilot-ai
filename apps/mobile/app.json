@@ -7,9 +7,8 @@
     "userInterfaceStyle": "dark",
     "android": {
       "package": "ai.pocketpilot.mobile",
-      "usesCleartextTraffic": true,
       "permissions": [
-        "CAMERA"
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -28,7 +27,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow PocketPilot to choose a screenshot for private on-device text recognition."
+          "photosPermission": "Allow PocketPilot to choose a screenshot for private on-device text recognition.",
+          "microphonePermission": false
         }
       ],
       [
@@ -39,7 +39,21 @@
           ],
           "ocrUseBundled": true
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "91e301cd-eae7-43e7-86ca-84f0eb1723c8"
+      }
+    },
+    "owner": "zeroday-404"
   }
 }

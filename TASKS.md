@@ -183,7 +183,7 @@ Depends on: M5.
 - [x] Best-effort deletion of temporary camera/preprocessed files after use, close, retake, or successful handoff.
 - [x] Deterministic project-owned Python/Java/TypeScript image fixtures including low contrast and rotation.
 - [x] Mock capture/OCR providers and tests for state, preprocessing, cleanup, normalization, quality, privacy, and API handoff.
-- [ ] Physical Android camera/gallery/OCR and camera-to-fix run (no SDK, ADB, emulator, or attached phone on the verification host).
+- [x] Physical Android camera/OCR and camera-to-fix run using an EAS internal development APK on a real phone over private LAN.
 
 Acceptance criteria: terminal screenshot fixture produces editable `ErrorContext`; low confidence never advances without review.
 
@@ -194,7 +194,19 @@ Verification evidence (2026-09-03):
 - Expo dependency check passed, config plugins resolved, and Expo Doctor passed 21/21 checks.
 - Authenticated `CAMERA`-source smoke passed pairing → analysis → patch → approval → real pytest → rollback → reconnect against a temporary project (analysis 69 ms, apply/test 529 ms).
 - Browser QA paired to the local agent and verified the responsive Scan Error entry/privacy UI.
-- Native image accuracy and the physical golden path remain explicitly unverified until the development build runs on Android hardware.
+- Native image accuracy and the physical golden path were subsequently verified on Android hardware on 2026-09-04.
+
+Verification evidence (2026-09-04):
+
+- EAS internal development build `1a716796-9260-44bd-a463-80faed4dcceb` installed and launched on a physical Android handset without a native-module crash; device model and Android version were not recorded.
+- Private-LAN pairing at `192.168.0.202:8000`, secure token reuse, authenticated WebSocket connection, app restart, event replay, and coherent `ROLLED_BACK` recovery passed.
+- Camera permission, live preview, flash on/off, capture, portrait and landscape handling, retake, guided crop, full-image preprocessing, and native bundled Latin ML Kit OCR passed. The camera controls were moved left to avoid a phone system/development overlay discovered during the test.
+- Real pytest terminal OCR completed in 375 ms and recovered 7/7 selected critical tokens: `TypeError`, `NoneType`, `user_service.py`, `5`, `test_missing_user_uses_fallback`, `get_user_name`, and `Unknown`. Full-image OCR also included surrounding Windows UI text and corrupted some non-critical assertion punctuation, confirming that editable review remains necessary.
+- The first guided laptop-screen capture completed in 1176 ms, showed editable output, and required manual corrections before submission. The confirmed text produced the correct root cause and one-file patch.
+- Network inspection before confirmation showed no analysis request. The persisted event recorded camera-text provenance, and the authenticated request contained confirmed text/source only—no image bytes, Base64, multipart data, or camera URI.
+- Camera → OCR → edit → analyze → root cause → generate → review → approve → apply → real pytest (`2 passed` in 530 ms) → `FIX VERIFIED` → undo completed. Rollback restored the exact original file and the expected test failure (`1 failed, 1 passed`).
+- A blank capture completed in 830 ms, returned `POOR · 0/100`, showed no-readable-text guidance, kept the text empty, disabled Analyze, and allowed discard/retake without a crash.
+- Final regression passed: `npm run check` completed lint, strict type checks, 37 tests, the desktop production build, and the mobile web export; Ruff passed; pytest passed 94 tests with 4 documented environment/opt-in skips; Expo dependency validation passed; Expo Doctor passed 21/21 checks; the Android manifest, OCR autolinking, and EAS development APK profile resolved correctly.
 
 ### M7 — Voice actions (P1)
 

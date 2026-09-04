@@ -22,6 +22,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "eslint": "10.0.0",
+    "expo": "57.0.19",
     "globals": "17.12.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.69.0"
