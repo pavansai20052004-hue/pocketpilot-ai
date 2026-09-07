@@ -1,6 +1,6 @@
 # Judge Q&A
 
-**What makes this different from Copilot?** PocketPilot is a phone-first debugging control plane: it captures physical terminal errors, selects bounded local repository context, proposes a reviewable patch, and runs only detected safe validation commands after approval.
+**What makes this different from Copilot?** Copilot primarily meets developers in coding tools. PocketPilot starts with physical-world context: capture any visible error from the phone, connect it to bounded local repository evidence, generate a controlled patch, require approval, run real allowlisted tests, and report the result back to the phone. It complements IDE assistants rather than claiming they cannot do related tasks.
 
 **Why phone-first, camera, and voice?** The phone can capture an error from any visible screen and lets a developer review or act while away from the keyboard. Camera and voice complement the normal desktop controls; neither is required.
 
@@ -8,11 +8,25 @@
 
 **Can AI execute arbitrary commands?** No. Model text never becomes shell input. Commands come from immutable templates detected from project manifests and run with no shell, a fixed directory, timeout, and bounded output.
 
+**Can the AI delete files?** No. Provider output is untrusted and has no direct filesystem capability. Path, context, diff, risk, and hash validation plus human approval sit between provider text and a narrowly scoped write.
+
+**Can voice run shell commands?** No. Voice maps only to a closed, state-checked application vocabulary. “Run PowerShell” and other unsupported commands execute nothing.
+
+**What if the file changed?** The patch stores original hashes. A mismatch rejects the stale patch and asks for a fresh one.
+
+**What if rollback would overwrite new work?** Rollback compares the current files with post-patch hashes. A mismatch blocks rollback instead of overwriting newer edits.
+
 **What if it hallucinates or the patch is stale?** Structured output and file references are validated. A patch must apply cleanly to supplied context, pass size/risk rules, and match original hashes immediately before application. The user reviews and approves it; real tests decide success.
 
 **What prevents destructive rollback?** PocketPilot snapshots only touched files and restores them only if their post-patch hashes still match. Newer edits create a conflict instead of being overwritten.
 
 **What happens without internet?** Installed project dependencies and an installed/running Ollama model work locally. Mock mode is a visibly labeled deterministic engineering fallback, never presented as Ollama.
+
+**Does the image leave the phone?** No. Camera and gallery images are OCR'd on-device by default; only editable text the user confirms is sent to the laptop.
+
+**Does repository source leave the laptop?** In configured Ollama mode, source context remains on the laptop. With the deterministic demo provider, the mapping also runs locally and is labeled as a demo provider.
+
+**Does voice require internet?** It may. PocketPilot uses the selected Android speech service, whose network behavior depends on the device. The UI does not claim offline voice unless the phone service verifies it.
 
 **Which languages work? Does this only work for demos?** The shared parser/context/patch pipeline supports Python, Java, JavaScript, and TypeScript patterns. This milestone proves Python and React live and supplies Java with conditional Maven validation. Demo mappings exist only in the mock provider/reset registry; production Ollama remains generic.
 

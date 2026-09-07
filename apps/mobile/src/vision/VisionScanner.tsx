@@ -170,6 +170,7 @@ export function VisionScanner({ onAnalyze, onClose, onReviewText, onSpeak }: Vis
   if (state.phase === 'REVIEW' && state.result !== null) {
     const quality = state.result.quality;
     return <VisionPage title="Confirm extracted text" subtitle="OCR can be wrong. Edit the text below before analysis." onClose={close}>
+      <View style={styles.capturedSummary}><Text style={styles.capturedEyebrow}>ERROR CAPTURED</Text><Text style={styles.detectedType}>Detected: {detectedErrorKind(draft)}</Text><View style={styles.tokenRow}>{criticalIdentifiers(draft).map((token) => <Text key={token} style={styles.token}>{token}</Text>)}</View></View>
       <View style={styles.qualityRow}><Text style={[styles.quality, quality.level === 'GOOD' ? styles.good : quality.level === 'POOR' ? styles.bad : styles.warn]}>{quality.level} · {quality.score}/100</Text><Text style={styles.source}>{state.result.source} · {state.result.duration_ms}ms</Text></View>
       {quality.warnings.map((warning) => <Text key={warning} style={warning === 'POSSIBLE_SECRET' || warning === 'POSSIBLE_PROMPT_INJECTION' ? styles.dangerWarning : styles.warning}>⚠ {WARNING_COPY[warning]}</Text>)}
       <Text style={styles.label}>EDITABLE TEXT SENT TO LAPTOP</Text>
@@ -187,6 +188,24 @@ export function VisionScanner({ onAnalyze, onClose, onReviewText, onSpeak }: Vis
     <Action label="TRY ANOTHER IMAGE" detail="Retake the photo or choose a clearer screenshot" onPress={discardAndRetake} />
     <PrivacyNote />
   </VisionPage>;
+}
+
+function detectedErrorKind(text: string): string {
+  if (/traceback|\.py:\d+|File\s+".*\.py"/i.test(text)) return 'Python traceback';
+  if (/at\s+.*\.java:\d+|Exception/i.test(text)) return 'Java exception';
+  if (/\.tsx?:\d+|TypeScript|React/i.test(text)) return 'React / TypeScript error';
+  return 'technical error';
+}
+
+function criticalIdentifiers(text: string): ReadonlyArray<string> {
+  const tokens = new Set<string>();
+  const errorType = text.match(/\b[A-Z][A-Za-z]+(?:Error|Exception)\b/)?.[0];
+  const file = text.match(/\b[\w.-]+\.(?:py|tsx?|java)\b/i)?.[0];
+  const line = text.match(/(?:line\s+|:)(\d+)\b/i)?.[1];
+  if (errorType) tokens.add(errorType);
+  if (file) tokens.add(file);
+  if (line) tokens.add(`line ${line}`);
+  return [...tokens].slice(0, 3);
 }
 
 function VisionPage({ children, title, subtitle, onClose }: { children: React.ReactNode; title: string; subtitle: string; onClose: () => void }) {
@@ -211,4 +230,5 @@ const styles = StyleSheet.create({
   cameraPage: { flex: 1, backgroundColor: '#000' }, cameraShade: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.22)' }, scanGuide: { width: '92%', height: '54%', borderWidth: 2, borderColor: '#C8FF3D', borderRadius: 14, justifyContent: 'flex-start', alignItems: 'center' }, guideText: { color: '#0B1008', backgroundColor: '#C8FF3D', paddingHorizontal: 10, paddingVertical: 5, fontSize: 9, fontWeight: '900', letterSpacing: 1 }, cameraHeader: { position: 'absolute', left: 0, right: 0, top: 0, minHeight: 72, paddingLeft: 20, paddingRight: 92, paddingTop: 18, flexDirection: 'row', justifyContent: 'space-between', backgroundColor: 'rgba(0,0,0,0.55)' }, cameraControl: { color: '#F3F6F0', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, captureBar: { position: 'absolute', left: 0, right: 0, bottom: 0, minHeight: 150, padding: 20, alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(0,0,0,0.72)' }, cameraHint: { color: '#C5CDC1', fontSize: 11 }, shutter: { width: 68, height: 68, borderRadius: 34, borderWidth: 3, borderColor: '#F5F7F2', alignItems: 'center', justifyContent: 'center' }, shutterCore: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#C8FF3D' }, galleryLink: { color: '#C8FF3D', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   previewFrame: { height: 390, overflow: 'hidden', borderRadius: 16, backgroundColor: '#020302', alignItems: 'center', justifyContent: 'center' }, previewImage: { width: '100%', height: '100%' }, previewGuide: { position: 'absolute', width: '90%', height: '62%', borderWidth: 2, borderColor: '#C8FF3D', borderRadius: 10 }, processing: { minHeight: 300, gap: 24, alignItems: 'center', justifyContent: 'center' },
   qualityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, quality: { overflow: 'hidden', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 }, good: { color: '#C8FF3D', backgroundColor: '#203118' }, warn: { color: '#F0C96B', backgroundColor: '#352B15' }, bad: { color: '#FF8B75', backgroundColor: '#351B17' }, source: { color: '#697266', fontSize: 9, fontWeight: '800' }, warning: { color: '#D9B968', backgroundColor: '#211D10', padding: 10, borderRadius: 9, fontSize: 11, lineHeight: 17 }, dangerWarning: { color: '#FF9A85', backgroundColor: '#251512', padding: 10, borderRadius: 9, fontSize: 11, lineHeight: 17 }, label: { color: '#778172', fontSize: 9, letterSpacing: 1.2, fontWeight: '800', marginTop: 5 }, textArea: { minHeight: 260, borderWidth: 1, borderColor: '#3A4437', borderRadius: 13, backgroundColor: '#080C09', color: '#E1E7DD', padding: 15, fontSize: 12, lineHeight: 19, fontFamily: 'monospace' }, rawLink: { color: '#C8FF3D', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, rawText: { color: '#859080', backgroundColor: '#080C09', padding: 13, borderRadius: 10, fontSize: 10, lineHeight: 16, fontFamily: 'monospace' },
+  capturedSummary: { padding: 14, borderWidth: 1, borderColor: '#33422D', borderRadius: 13, backgroundColor: '#10180E' }, capturedEyebrow: { color: '#C8FF3D', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 }, detectedType: { color: '#EEF2EA', fontSize: 16, fontWeight: '800', marginTop: 8 }, tokenRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }, token: { overflow: 'hidden', color: '#C8FF3D', backgroundColor: '#080C09', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, fontSize: 9, fontFamily: 'monospace' },
 });

@@ -22,6 +22,7 @@ from pocketpilot_agent.models import (
     DemoSelection,
     PreDemoCheck,
     PreDemoCheckResult,
+    PrepareDemoResult,
 )
 from pocketpilot_agent.validation_selector import ValidationCommandSelector
 from pocketpilot_agent.workspace import WorkspaceService
@@ -239,7 +240,11 @@ class DemoService:
                 ),
             ),
             PreDemoCheck(
-                name="Local AI" if self.provider.name == "ollama" else "Deterministic demo AI",
+                name=(
+                    "Local AI"
+                    if self.provider.name == "ollama"
+                    else "Deterministic demo provider"
+                ),
                 status="READY" if provider.available else "NOT_READY",
                 detail=provider.detail,
             ),
@@ -273,6 +278,21 @@ class DemoService:
             overall=overall,
             provider=provider.provider,
             model=provider.model,
+        )
+
+    async def prepare(self, demo_id: str) -> PrepareDemoResult:
+        """Restore and verify one registered demo, then select it for presentation."""
+        reset = self.reset(demo_id)
+        if reset.demo.status is not DemoHealthStatus.READY:
+            raise DemoResetError(
+                f"{reset.demo.name} is not ready: {reset.demo.detail}"
+            )
+        selected = self.select(demo_id)
+        readiness = await self.preflight()
+        return PrepareDemoResult(
+            demo=selected.demo,
+            workspace=selected.workspace,
+            readiness=readiness,
         )
 
     def _entry(self, demo_id: str) -> RegisteredDemo:

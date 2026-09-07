@@ -637,3 +637,10 @@ class PreDemoCheckResult(StrictModel):
     overall: str
     provider: str
     model: str
+
+
+class PrepareDemoResult(StrictModel):
+    demo: DemoProject
+    workspace: WorkspaceInfo
+    readiness: PreDemoCheckResult
+    result: str = "READY_FOR_NEXT_DEMO"

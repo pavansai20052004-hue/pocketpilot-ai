@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { ApiClient, type Fetcher } from './client';
-import { resetDemo, selectDemo } from './demos';
+import { prepareDemo, resetDemo, selectDemo } from './demos';
 
 describe('registered demo API', () => {
   it('sends only an encoded demo ID and no filesystem path body', async () => {
@@ -26,5 +26,18 @@ describe('registered demo API', () => {
 
     await expect(resetDemo(client, '../outside')).rejects.toThrow('Demo ID is not registered.');
     expect(fetcher.mock.calls[0]?.[0]).toContain('..%2Foutside');
+  });
+
+  it('prepares only an encoded registered demo ID', async () => {
+    const fetcher = vi.fn<Fetcher>(async () => new Response(JSON.stringify({ result: 'READY_FOR_NEXT_DEMO' }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = new ApiClient({ baseUrl: 'http://laptop:8000', token: 'token', fetcher });
+
+    await prepareDemo(client, 'python-null-user');
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://laptop:8000/api/v1/demo/prepare/python-null-user',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetcher.mock.calls[0]?.[1]?.body).toBeUndefined();
   });
 });

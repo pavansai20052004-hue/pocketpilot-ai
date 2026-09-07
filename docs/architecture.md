@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the Phase A foundation and extended through Milestone 3 on 2026-09-02.
+Accepted for the Phase A foundation and extended through Milestone 9 presentation hardening on 2026-09-08.
 
 ## Decision
 
@@ -10,13 +10,13 @@ PocketPilot AI is a local-first monorepo with three separately runnable processe
 
 ```text
 Android phone (Expo/React Native)
-        │ future typed WebSocket/HTTP bridge
+        │ authenticated typed WebSocket/HTTP bridge
         ▼
-FastAPI local agent ───── future LLMProvider ───── Ollama
+FastAPI local agent ───── LLMProvider ───── Ollama or labeled demo provider
         │
-        ├── future constrained repository boundary
-        ├── future approval-gated patch engine
-        └── future allowlisted test runner
+        ├── constrained repository boundary
+        ├── approval-gated patch engine
+        └── allowlisted test runner
         ▲
         │ typed HTTP/WebSocket observation
 Desktop dashboard (Vite/React)
@@ -80,6 +80,8 @@ Phase A uses HTTP only for health/status verification. Milestone 2 adds typed se
 - The three demo repositories will have resettable known states and pinned dependencies.
 - Startup checks report phone, workspace, model, and runtime readiness before a demo begins.
 - The WebSocket client will recover current session state after reconnect rather than relying only on transient messages.
+- Presentation Mode is a view concern only. It never changes the state machine, authorization, patch validation, approval, command registry, or rollback rules.
+- `Prepare Demo` accepts only a registered server-owned ID, restores its canonical broken source, verifies the expected failure, selects the workspace, and returns real preflight state.
 
 ## Alternatives considered
 

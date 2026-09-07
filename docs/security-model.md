@@ -1,5 +1,9 @@
 # Desktop-agent security model
 
+## Presentation-mode security
+
+Presentation Mode removes visual clutter, not controls. It keeps authenticated pairing, revision checks, original-content hashes, path bounding, diff validation, human approval, no-shell allowlisted commands, bounded output, retry limits, and rollback conflict detection. Provider identity remains visible. The deterministic fallback is never presented as Ollama, and Android speech is never described as offline unless verified by the selected phone service.
+
 ## Scope and trust boundary
 
 Milestone 1 grants the local FastAPI process two bounded capabilities after an explicit user action:

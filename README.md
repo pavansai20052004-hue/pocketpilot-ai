@@ -4,7 +4,7 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 8 is complete with deterministic Python, Java, and React hackathon demos, registered-ID selection, safe reset, health checks, and preflight. Camera/OCR and voice were regression-tested on the physical Android phone. Java is currently `TOOL_MISSING` because Maven is not installed; iQOO Office Kit is not implemented.
+> Current phase: Milestone 9 presentation and reliability hardening is implemented over the verified Milestone 8 workflow. Presentation Mode, safe Prepare Demo, provider-transparent judge views, reconnect recovery, and repeatability tooling are available. Java remains `TOOL_MISSING` because Maven is not installed; Ollama is not configured; iQOO Office Kit is not implemented.
 
 ## Foundation architecture
 
@@ -43,6 +43,8 @@ If PowerShell cannot find Python but Codex workspace dependencies are installed,
 5. Run the real failing pytest command, scan it, generate a fix, review, approve, and show the real passing validation.
 
 Run `npm run demo:check` again after startup for the final green readiness view. Preflight never installs tools, pulls models, changes the firewall, or deletes files. See the [master script](docs/demo-script.md) and [recovery playbook](docs/demo-recovery.md).
+
+Use `npm run demo:stop` to stop only the two processes recorded by `demo:start`. In the desktop Presentation Mode dashboard, choose **Python User Service → Prepare Demo**. This restores and verifies the registered broken state, selects the workspace, and refreshes the honest readiness result. The mobile app starts in Presentation Mode; see the [presentation guide](docs/presentation-mode.md) and [event checklist](docs/hackathon-checklist.md).
 
 ## Start and pair
 

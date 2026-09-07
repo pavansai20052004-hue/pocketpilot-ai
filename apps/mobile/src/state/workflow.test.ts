@@ -22,7 +22,7 @@ describe('mobile workflow reducer', () => {
 
     expect(state.events).toHaveLength(events.length);
     expect(state.session?.state).toBe('SUCCESS');
-    expect(pipelineStatus(state).find((step) => step.label === 'Verification')?.complete).toBe(true);
+    expect(pipelineStatus(state).find((step) => step.label === 'Tests verified')?.complete).toBe(true);
   });
 
   it('reconciles missed snapshot events in sequence order', () => {

@@ -14,13 +14,13 @@ from fastapi.testclient import TestClient
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "services" / "agent" / "src"))
 
-from pocketpilot_agent.config import Settings  # noqa: E402
-from pocketpilot_agent.main import create_app  # noqa: E402
+from pocketpilot_agent.config import Settings
+from pocketpilot_agent.main import create_app
 
 CASES = (
-    ("python-null-user", "python-broken-app", "fixtures/traceback.txt"),
-    ("java-null-user", "java-broken-app", "fixtures/stacktrace.txt"),
-    ("react-null-profile", "react-broken-app", "fixtures/terminal.txt"),
+    ("python-null-user", "python-broken-app", "fixtures/traceback.txt", 5),
+    ("java-null-user", "java-broken-app", "fixtures/stacktrace.txt", 1),
+    ("react-null-profile", "react-broken-app", "fixtures/terminal.txt", 3),
 )
 
 
@@ -34,10 +34,10 @@ def post(client: TestClient, path: str, payload: dict[str, object] | None = None
     return response.json()
 
 
-def measure(client: TestClient, demo_id: str, directory: str, fixture: str) -> dict:
+def measure(client: TestClient, demo_id: str, directory: str, fixture: str, cycle: int) -> dict:
     health = client.post(f"/api/v1/demo/verify/{demo_id}").json()
     if health["status"] == "TOOL_MISSING":
-        return {"demo_id": demo_id, "status": "SKIPPED", "reason": health["detail"]}
+        return {"demo_id": demo_id, "cycle": cycle, "status": "SKIPPED", "reason": health["detail"]}
     overall_started = time.perf_counter()
     reset_started = time.perf_counter()
     reset = post(client, f"/api/v1/demo/reset/{demo_id}")
@@ -118,6 +118,7 @@ def measure(client: TestClient, demo_id: str, directory: str, fixture: str) -> d
     return {
         "demo_id": demo_id,
         "status": "PASS",
+        "cycle": cycle,
         "reset_ms": reset_ms,
         "workspace_selection_ms": select_ms,
         "initial_validation_ms": initial_validation_ms,
@@ -145,8 +146,20 @@ def main() -> int:
             )
         )
         with TestClient(app) as client:
-            results = [measure(client, *case) for case in CASES]
-        print(json.dumps({"provider": "mock", "results": results}, indent=2))
+            results = [
+                measure(client, demo_id, directory, fixture, cycle)
+                for demo_id, directory, fixture, cycles in CASES
+                for cycle in range(1, cycles + 1)
+            ]
+        summary = {
+            demo_id: {
+                "passed": sum(item["status"] == "PASS" for item in results if item["demo_id"] == demo_id),
+                "total": sum(item["status"] != "SKIPPED" for item in results if item["demo_id"] == demo_id),
+                "skipped": sum(item["status"] == "SKIPPED" for item in results if item["demo_id"] == demo_id),
+            }
+            for demo_id, *_ in CASES
+        }
+        print(json.dumps({"provider": "mock", "summary": summary, "results": results}, indent=2))
         return 0
     finally:
         shutil.rmtree(temporary_root, ignore_errors=True)

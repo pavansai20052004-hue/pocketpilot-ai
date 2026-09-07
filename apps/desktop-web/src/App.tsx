@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import type { AgentEvent, AnalysisExecutionResponse, AnalysisRecord, CommandRun, DebugSession, DemoProject, DemoProjectList, DemoResetResult, DemoSelection, DeviceList, PairingCodeView, PatchActionResponse, PatchGenerationResponse, PatchWorkflowView, PreDemoCheckResult, ProviderHealth, SafeCommand, SessionTransitionResult, WorkspaceInfo } from '@pocketpilot/shared-types';
+import type { AgentEvent, AnalysisExecutionResponse, AnalysisRecord, CommandRun, DebugSession, DemoProject, DemoProjectList, DemoResetResult, DemoSelection, DeviceList, PairingCodeView, PatchActionResponse, PatchGenerationResponse, PatchWorkflowView, PrepareDemoResult, PreDemoCheckResult, ProviderHealth, SafeCommand, SessionTransitionResult, WorkspaceInfo } from '@pocketpilot/shared-types';
 
 const apiBaseUrl = import.meta.env.VITE_AGENT_HTTP_URL ?? 'http://127.0.0.1:8000';
 
@@ -24,6 +24,8 @@ export function App() {
   const [pairingNow, setPairingNow] = useState(Date.now());
   const [demos, setDemos] = useState<ReadonlyArray<DemoProject>>([]);
   const [preflight, setPreflight] = useState<PreDemoCheckResult | null>(null);
+  const [presentationMode, setPresentationMode] = useState(true);
+  const eventSocket = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     void request<ProviderHealth>('/api/v1/analysis/provider').then(setProvider).catch(() => setProvider(null));
@@ -31,6 +33,8 @@ export function App() {
     void request<PairingCodeView>('/api/v1/devices/pairing-code').then(setPairing).catch(() => setPairing(null));
     void refreshDemos();
   }, []);
+
+  useEffect(() => () => eventSocket.current?.close(), []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setPairingNow(Date.now()), 1000);
@@ -56,6 +60,7 @@ export function App() {
     setBusyAction(`demo-select-${demoId}`); setError(null); setCommandRun(null);
     try {
       const selected = await request<DemoSelection>(`/api/v1/demo/select/${encodeURIComponent(demoId)}`, { method: 'POST' });
+      eventSocket.current?.close();
       setWorkspace(selected.workspace); setWorkspacePath(selected.workspace.root_path);
       setAnalysis(null); setAnalysisEvents([]); setDebugSession(null); setPatchWorkflow(null); setErrorText('');
       setDemos((items) => items.map((item) => item.id === demoId ? selected.demo : item));
@@ -68,6 +73,7 @@ export function App() {
     setBusyAction(`demo-reset-${demoId}`); setError(null);
     try {
       const reset = await request<DemoResetResult>(`/api/v1/demo/reset/${encodeURIComponent(demoId)}`, { method: 'POST' });
+      eventSocket.current?.close();
       setDemos((items) => items.map((item) => item.id === demoId ? reset.demo : item));
       setAnalysis(null); setAnalysisEvents([]); setDebugSession(null); setPatchWorkflow(null); setErrorText('');
       if (workspace?.name === demoDirectoryName(demoId)) {
@@ -94,6 +100,19 @@ export function App() {
     finally { setBusyAction(null); }
   }
 
+  async function prepareDemo(demoId: string) {
+    setBusyAction(`demo-prepare-${demoId}`); setError(null); setCommandRun(null);
+    try {
+      const prepared = await request<PrepareDemoResult>(`/api/v1/demo/prepare/${encodeURIComponent(demoId)}`, { method: 'POST' });
+      eventSocket.current?.close();
+      setWorkspace(prepared.workspace); setWorkspacePath(prepared.workspace.root_path);
+      setPreflight(prepared.readiness);
+      setDemos((items) => items.map((item) => item.id === demoId ? prepared.demo : item));
+      setAnalysis(null); setAnalysisEvents([]); setDebugSession(null); setPatchWorkflow(null); setErrorText('');
+    } catch (requestError) { setError(messageFrom(requestError, presentationMode)); }
+    finally { setBusyAction(null); }
+  }
+
   async function generatePairingCode() {
     setBusyAction('pairing'); setError(null);
     try { setPairing(await request<PairingCodeView>('/api/v1/devices/pairing-code', { method: 'POST' })); }
@@ -106,7 +125,7 @@ export function App() {
     try {
       await request(`/api/v1/devices/${encodeURIComponent(deviceId)}/revoke`, { method: 'POST' });
       await refreshDevices();
-    } catch (requestError) { setError(messageFrom(requestError)); }
+    } catch (requestError) { setError(messageFrom(requestError, presentationMode)); }
     finally { setBusyAction(null); }
   }
 
@@ -156,7 +175,6 @@ export function App() {
       return;
     }
     setBusyAction('analyze'); setError(null); setAnalysis(null); setPatchWorkflow(null); setAnalysisEvents([]);
-    let socket: WebSocket | null = null;
     try {
       const created = await request<SessionTransitionResult>('/api/v1/sessions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -166,8 +184,9 @@ export function App() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target_state: 'CAPTURED', expected_revision: created.session.revision, summary: 'Pasted error captured for local analysis.' }),
       });
-      socket = new WebSocket(eventSocketUrl(created.session.id, captured.event.sequence));
-      socket.onmessage = (message) => {
+      eventSocket.current?.close();
+      eventSocket.current = new WebSocket(eventSocketUrl(created.session.id, captured.event.sequence));
+      eventSocket.current.onmessage = (message) => {
         const payload: unknown = JSON.parse(String(message.data));
         if (isEventMessage(payload)) setAnalysisEvents((events) => [...events, payload.event]);
         else if (isSnapshotMessage(payload)) setAnalysisEvents(payload.events);
@@ -181,7 +200,7 @@ export function App() {
     } catch (requestError) {
       setError(messageFrom(requestError));
     } finally {
-      socket?.close(); setBusyAction(null);
+      setBusyAction(null);
     }
   }
 
@@ -245,20 +264,30 @@ export function App() {
           <span className="brand-mark">P</span>
           <div><strong>PocketPilot</strong><span>Desktop Agent</span></div>
         </div>
-        <div className="security-badge"><i /> Local security boundary active</div>
+        <div className="topbar-actions">
+          <button aria-pressed={presentationMode} className="mode-toggle" onClick={() => setPresentationMode(!presentationMode)} type="button">{presentationMode ? 'PRESENTATION MODE' : 'DEVELOPMENT MODE'}</button>
+          <div className="security-badge"><i /> Local security boundary active</div>
+        </div>
       </header>
 
-      <section className="intro">
+      {presentationMode ? <PresentationHero /> : <section className="intro">
         <div>
           <span className="kicker">REPOSITORY CONTROL PLANE</span>
           <h1>Inspect locally.<br />Execute deliberately.</h1>
         </div>
         <p>Select one project root. PocketPilot indexes safe metadata and offers only evidence-backed build and test actions.</p>
-      </section>
+      </section>}
+
+      {presentationMode && <JudgeOverview
+        devices={devices}
+        provider={provider}
+        session={debugSession}
+        workspace={workspace}
+      />}
 
       <section className="demo-panel">
         <div className="panel-heading">
-          <div><span className="kicker">HACKATHON DEMOS</span><h2>Deterministic multi-language suite</h2></div>
+          <div><span className="kicker">DEMO READINESS</span><h2>{presentationMode ? 'Choose a real registered scenario' : 'Deterministic multi-language suite'}</h2></div>
           <button className="secondary-button" disabled={busyAction !== null} onClick={() => void runPreflight()} type="button">
             {busyAction === 'demo-preflight' ? 'CHECKING…' : 'RUN PRE-DEMO CHECK'}
           </button>
@@ -271,20 +300,22 @@ export function App() {
             <p>{demo.detail}</p>
             <small>{demo.framework} · {demo.validation_duration_ms} ms</small>
             <div className="demo-actions">
-              <button disabled={busyAction !== null} onClick={() => void selectDemo(demo.id)} type="button">SELECT</button>
-              <button disabled={busyAction !== null} onClick={() => void resetDemo(demo.id)} type="button">RESET</button>
-              <button disabled={busyAction !== null} onClick={() => void verifyDemo(demo.id)} type="button">VERIFY</button>
+              <button className="prepare-action" disabled={busyAction !== null || demo.status === 'TOOL_MISSING'} onClick={() => void prepareDemo(demo.id)} type="button">{busyAction === `demo-prepare-${demo.id}` ? 'PREPARING…' : 'PREPARE DEMO'}</button>
+              {!presentationMode && <><button disabled={busyAction !== null} onClick={() => void selectDemo(demo.id)} type="button">SELECT</button><button disabled={busyAction !== null} onClick={() => void resetDemo(demo.id)} type="button">RESET</button><button disabled={busyAction !== null} onClick={() => void verifyDemo(demo.id)} type="button">VERIFY</button></>}
             </div>
           </article>)}
           {demos.length === 0 && <p className="muted">Demo status is not available yet.</p>}
         </div>
         {preflight !== null && <div className="readiness-panel">
           <div><span className="kicker">READY TO DEMO</span><strong>{preflight.overall.replaceAll('_', ' ')}</strong></div>
-          <span>{preflight.provider === 'ollama' ? 'LOCAL AI' : 'DETERMINISTIC DEMO MODE'} · {preflight.model}</span>
+          <span>{providerDisplay(preflight.provider, preflight.model)}</span>
           <div>{preflight.checks.map((check) => <p key={check.name}><b>{check.name}</b><span>{check.status.replaceAll('_', ' ')}</span></p>)}</div>
         </div>}
       </section>
 
+      {presentationMode && <PresentationDetails events={analysisEvents} session={debugSession} />}
+
+      {!presentationMode && <>
       <section className="workspace-bar">
         <label htmlFor="workspace-path">WORKSPACE PATH</label>
         <div className="workspace-input-row">
@@ -302,8 +333,9 @@ export function App() {
         </div>
         <p className="input-note">No files are modified. Secret-like content and generated directories are excluded.</p>
       </section>
+      </>}
 
-      <section className="device-panel">
+      {(!presentationMode || devices.devices.every((device) => device.status !== 'CONNECTED')) && <section className="device-panel">
         <div className="panel-heading">
           <div><span className="kicker">DEVICE CONNECTION</span><h2>Pair your phone</h2></div>
           <span className="security-badge"><i /> authenticated LAN</span>
@@ -317,11 +349,11 @@ export function App() {
           </div>
           <div className="device-list"><span className="kicker">CONNECTED DEVICES</span>{devices.devices.filter((device) => device.status === 'CONNECTED').map((device) => <div className="device-row" key={device.device_id}><i /><div><strong>{device.display_name}</strong><span>Last seen {relativeDeviceTime(device.last_seen, pairingNow)}</span></div><button disabled={busyAction !== null} onClick={() => void revokeDevice(device.device_id)} type="button">REVOKE</button></div>)}{devices.devices.every((device) => device.status !== 'CONNECTED') && <p className="muted">No paired phones. Tokens are stored as hashes only.</p>}</div>
         </div>
-      </section>
+      </section>}
 
       {error !== null && <div className="error-banner"><strong>REQUEST BLOCKED</strong>{error}</div>}
 
-      {workspace === null ? <EmptyState /> : (
+      {!presentationMode && (workspace === null ? <EmptyState /> : (
         <>
           <section className="project-grid">
             <article className="panel project-summary">
@@ -394,7 +426,7 @@ export function App() {
             {analysisEvents.length > 0 && <div className="analysis-timeline">{analysisEvents.slice(-6).map((event) => <span key={event.id}>{event.name.replaceAll('_', ' ')}</span>)}</div>}
           </section>
         </>
-      )}
+      ))}
 
       {commandRun !== null && <CommandResult result={commandRun} />}
       {analysis !== null && <AnalysisResultView analysis={analysis} busy={busyAction !== null} onGenerate={() => void generateFix()} />}
@@ -402,6 +434,35 @@ export function App() {
       <footer><span>POCKETPILOT / DESKTOP AGENT 0.1.0</span><span>shell=False · bounded output · explicit approval</span></footer>
     </main>
   );
+}
+
+function PresentationHero() {
+  return <section className="presentation-hero"><div><span className="presentation-label">PRESENTATION MODE</span><span className="kicker">LOCAL DEVELOPER ASSISTANT</span><h1>See it. Say it. Fix it.</h1></div><p>Capture any visible error, understand it against the local repository, approve a controlled patch, and verify it with real tests.</p></section>;
+}
+
+function JudgeOverview({ devices, provider, session, workspace }: { devices: DeviceList; provider: ProviderHealth | null; session: DebugSession | null; workspace: WorkspaceInfo | null }) {
+  const phoneConnected = devices.devices.some((device) => device.status === 'CONNECTED');
+  const cards = [
+    ['PHONE', phoneConnected ? 'CONNECTED' : 'WAITING', phoneConnected],
+    ['WORKSPACE', workspace?.name ?? 'NOT SELECTED', workspace !== null],
+    ['AI PROVIDER', provider === null ? 'CHECKING' : providerDisplay(provider.provider, provider.model), provider?.available === true],
+    ['SESSION', session?.state.replaceAll('_', ' ') ?? 'READY', session?.state !== 'FAILED'],
+  ] as const;
+  return <section className="judge-overview" aria-label="Live demo status">{cards.map(([label, value, good]) => <article key={label}><span>{label}</span><strong>{value}</strong><small className={good ? 'status-good' : 'status-warn'}>{good ? '● READY' : '● ATTENTION'}</small></article>)}</section>;
+}
+
+function PresentationDetails({ events, session }: { events: ReadonlyArray<AgentEvent>; session: DebugSession | null }) {
+  const activeNames = new Set(events.map((event) => event.name));
+  const stages = [
+    ['PHONE', 'Camera / Voice', activeNames.has('error_captured')],
+    ['LOCAL BRIDGE', 'Authenticated session', session !== null],
+    ['REPOSITORY', 'Bounded context', activeNames.has('context_collection_completed')],
+    ['PROVIDER', 'Root-cause analysis', activeNames.has('analysis_provider_completed')],
+    ['PATCH VALIDATOR', 'Untrusted diff checked', activeNames.has('patch_validation_completed')],
+    ['HUMAN APPROVAL', 'Explicit decision', activeNames.has('patch_approved')],
+    ['SAFE TESTS', 'Allowlisted verification', session?.state === 'SUCCESS'],
+  ] as const;
+  return <section className="presentation-details"><div className="live-architecture"><div className="panel-heading"><div><span className="kicker">LIVE ARCHITECTURE</span><h2>One controlled path to verified code</h2></div><span className="live-badge">LIVE</span></div><div className="architecture-flow">{stages.map(([name, detail, active], index) => <div className={`architecture-stage ${active ? 'architecture-active' : ''}`} key={name}><span>{name}</span><strong>{detail}</strong>{index < stages.length - 1 && <i>→</i>}</div>)}</div></div><details className="technical-details"><summary>HOW IT WORKS</summary><div><p>OCR runs on the phone; only confirmed text crosses the authenticated local bridge.</p><p>Repository source and rollback snapshots remain on the laptop.</p><p>The provider proposes analysis and patches but cannot write files directly.</p><p>Patch validation, human approval, allowlisted tests, and hash-safe rollback protect developer work.</p><p>Android voice recognition may use its selected phone service and network.</p></div></details></section>;
 }
 
 function EmptyState() {
@@ -532,8 +593,19 @@ function isSnapshotMessage(value: unknown): value is { type: 'snapshot'; events:
   return typeof value === 'object' && value !== null && 'type' in value && value.type === 'snapshot' && 'events' in value && Array.isArray(value.events);
 }
 
-function messageFrom(error: unknown): string {
-  return error instanceof Error ? error.message : 'The local agent request failed.';
+function messageFrom(error: unknown, presentationMode = false): string {
+  const raw = error instanceof Error ? error.message : 'The local agent request failed.';
+  if (!presentationMode) return raw;
+  if (/revision|stale|outdated/i.test(raw)) return 'THIS FIX IS OUTDATED — The file changed after this patch was created. Generate a fresh fix before applying it.';
+  if (/timeout/i.test(raw)) return 'THE REQUEST TOOK TOO LONG — Your session is safe. Try the same action again.';
+  if (/provider|ollama/i.test(raw)) return 'AI PROVIDER UNAVAILABLE — The session is safe. Restore the configured provider, then try again.';
+  return raw;
+}
+
+export function providerDisplay(provider: string, model: string): string {
+  if (provider.toLowerCase() === 'mock') return 'DETERMINISTIC DEMO PROVIDER';
+  if (provider.toLowerCase() === 'ollama') return `OLLAMA · ${model}`;
+  return `${provider.toUpperCase()} · ${model}`;
 }
 
 function formatCountdown(milliseconds: number): string {

@@ -21,6 +21,7 @@ import type {
   DemoProject,
   ErrorInputType,
   PatchWorkflowView,
+  PreDemoCheckResult,
   ProviderHealth,
   VisionInputSource,
 } from '@pocketpilot/shared-types';
@@ -28,7 +29,7 @@ import type {
 import { analyzeText, getAnalysis } from './src/api/analysis';
 import { ApiClient, ApiError, normalizeBaseUrl } from './src/api/client';
 import { pairDevice } from './src/api/devices';
-import { listDemos, resetDemo, selectDemo } from './src/api/demos';
+import { getDemoReadiness, listDemos, prepareDemo, resetDemo, selectDemo } from './src/api/demos';
 import { decidePatch, generatePatch, getPatch } from './src/api/patches';
 import { captureSession, createSession, getEvents, getSession, listSessions } from './src/api/sessions';
 import { getProviderHealth, getWorkspace } from './src/api/workspaces';
@@ -76,15 +77,17 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
   const [history, setHistory] = useState<ReadonlyArray<DebugSession>>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [demoMode, setDemoMode] = useState(false);
+  const [demoMode, setDemoMode] = useState(true);
   const [demoProjects, setDemoProjects] = useState<ReadonlyArray<DemoProject>>([]);
   const [activeDemoId, setActiveDemoId] = useState<string | null>(null);
+  const [readiness, setReadiness] = useState<PreDemoCheckResult | null>(null);
   const [visionOpen, setVisionOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [speechCapability, setSpeechCapability] = useState<SpeechCapability | null>(null);
   const [ttsAvailable, setTtsAvailable] = useState(false);
   const bridgeRef = useRef<DeviceBridge | null>(null);
   const authResetting = useRef(false);
+  const resumeAttempted = useRef(false);
   const client = useMemo(() => new ApiClient({ baseUrl: connection.serverAddress, token: connection.token }), [connection]);
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -145,15 +148,26 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
       dispatch({ type: 'CONNECTION', status: 'CONNECTED' });
       setProvider(health);
       setHistory(sessions.sessions);
+      if (!resumeAttempted.current) {
+        resumeAttempted.current = true;
+        const resumable = sessions.sessions.find((session) => !['IDLE', 'ROLLED_BACK'].includes(session.state));
+        if (resumable !== undefined) {
+          dispatch({ type: 'SESSION', session: resumable });
+          bridgeRef.current?.connect(resumable.id, resumable.last_event_sequence);
+          void reconcile(resumable.id);
+        }
+      }
       setError(null);
     } catch (requestError) {
       reportRequestError(requestError);
     }
-  }, [client, reportRequestError]);
+  }, [client, reconcile, reportRequestError]);
 
   useEffect(() => { void refreshDashboard(); }, [refreshDashboard]);
   useEffect(() => {
-    void listDemos(client).then((result) => setDemoProjects(result.demos)).catch(reportRequestError);
+    void Promise.all([listDemos(client), getDemoReadiness(client)])
+      .then(([result, check]) => { setDemoProjects(result.demos); setReadiness(check); })
+      .catch(reportRequestError);
   }, [client, reportRequestError]);
   useEffect(() => {
     const active = demoProjects.find((demo) => demoDirectoryName(demo.id) === state.workspace?.name);
@@ -313,6 +327,20 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     finally { setBusy(null); }
   }
 
+  async function prepareSelectedDemo(demoId: string) {
+    setBusy('demo-prepare'); setError(null);
+    try {
+      const prepared = await prepareDemo(client, demoId);
+      bridgeRef.current?.disconnect();
+      dispatch({ type: 'CLEAR_SESSION' });
+      dispatch({ type: 'WORKSPACE', workspace: prepared.workspace });
+      setDemoProjects((items) => items.map((item) => item.id === demoId ? prepared.demo : item));
+      setActiveDemoId(demoId);
+      setReadiness(prepared.readiness);
+    } catch (requestError) { reportRequestError(requestError); }
+    finally { setBusy(null); }
+  }
+
   const voiceContext: VoiceSessionContext = {
     session_state: state.session?.state ?? null,
     patch_status: state.patch?.status ?? null,
@@ -395,11 +423,11 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
       <View style={styles.app}>
-        <Header connection={state.connection} />
+        <Header connection={state.connection} presentationMode={demoMode} />
         {error !== null && <ErrorBanner message={error} onRetry={() => void refreshDashboard()} />}
         <Animated.View style={[styles.content, { opacity: fade }]}>
           {visionOpen ? <VisionScanner onAnalyze={analyzeVisionText} onClose={() => setVisionOpen(false)} onReviewText={reviewVisionText} onSpeak={() => setVoiceOpen(true)} /> : <>
-          {tab === 'HOME' && <HomeScreen activeDemoId={activeDemoId} busy={busy} currentSession={state.session} demoMode={demoMode} demos={demoProjects} onPaste={() => { setInputSource('TEXT'); setTab('DEBUG'); }} onResetDemo={confirmDemoReset} onScan={() => setVisionOpen(true)} onSelectDemo={(id) => void chooseDemo(id)} onSpeak={() => setVoiceOpen(true)} provider={provider} state={state} />}
+          {tab === 'HOME' && <HomeScreen activeDemoId={activeDemoId} busy={busy} currentSession={state.session} demoMode={demoMode} demos={demoProjects} onNewSession={() => { bridgeRef.current?.disconnect(); dispatch({ type: 'CLEAR_SESSION' }); setTab('DEBUG'); }} onPaste={() => { setInputSource('TEXT'); setTab('DEBUG'); }} onPrepare={(id) => void prepareSelectedDemo(id)} onResetDemo={confirmDemoReset} onScan={() => setVisionOpen(true)} onSelectDemo={(id) => void chooseDemo(id)} onSpeak={() => setVoiceOpen(true)} provider={provider} readiness={readiness} speechCapability={speechCapability} state={state} />}
           {tab === 'DEBUG' && (
             <DebugScreen
               analysis={state.analysis}
@@ -421,6 +449,7 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
               patch={state.patch}
               session={state.session}
               steps={pipelineStatus(state)}
+              validationCommand={state.workspace?.detected_commands.find((command) => command.category === 'test')?.display_command ?? 'the registered project validation command'}
               workspaceReady={state.workspace !== null}
             />
           )}
@@ -433,6 +462,35 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
       </View>
     </SafeAreaView>
   );
+}
+
+function PresentationHome({ activeDemo, busy, currentSession, demos, onNewSession, onPaste, onPrepare, onResetDemo, onScan, onSelectDemo, onSpeak, provider, readiness, speechCapability, state }: { activeDemo: DemoProject | undefined; busy: string | null; currentSession: DebugSession | null; demos: ReadonlyArray<DemoProject>; onNewSession: () => void; onPaste: () => void; onPrepare: (id: string) => void; onResetDemo: (id: string) => void; onScan: () => void; onSelectDemo: (id: string) => void; onSpeak: () => void; provider: ProviderHealth | null; readiness: PreDemoCheckResult | null; speechCapability: SpeechCapability | null; state: WorkflowState }) {
+  const overall = readiness?.overall === 'READY' ? 'READY' : readiness?.overall?.startsWith('READY') ? 'READY WITH WARNINGS' : 'CHECK REQUIRED';
+  const workspace = activeDemo?.name ?? state.workspace?.name ?? 'Select on laptop';
+  const voiceReady = speechCapability?.available === true;
+  return <ScrollView contentContainerStyle={styles.presentationPage}>
+    <View style={styles.presentationIntro}><Eyebrow>PHONE-CONTROLLED DEVELOPER ASSISTANT</Eyebrow><Text style={styles.presentationTitle}>See it. Say it.{`\n`}Fix it.</Text><Text style={styles.presentationCopy}>Turn a visible error into a reviewed patch and a real verified test result.</Text></View>
+    <Card accent>
+      <View style={styles.titleRow}><View><Eyebrow>DEMO READINESS</Eyebrow><Text style={styles.cardTitle}>{overall}</Text></View><Badge label="PRESENTATION" tone={overall === 'READY' ? 'good' : 'warn'} /></View>
+      <View style={styles.readinessGrid}>
+        <ReadinessItem label="LAPTOP" value={state.connection === 'CONNECTED' ? 'Connected' : state.connection} good={state.connection === 'CONNECTED'} />
+        <ReadinessItem label="WORKSPACE" value={workspace} good={state.workspace !== null} />
+        <ReadinessItem label="AI" value={providerLabel(provider)} good={provider?.available === true} />
+        <ReadinessItem label="CAMERA" value="Ready" good />
+        <ReadinessItem label="VOICE" value={voiceReady ? 'Ready' : 'Check once'} good={voiceReady} />
+      </View>
+      {activeDemo !== undefined && <PrimaryButton accessibilityLabel={`Prepare ${activeDemo.name} demo`} disabled={busy !== null || activeDemo.status === 'TOOL_MISSING'} label={busy === 'demo-prepare' ? 'PREPARING DEMO…' : 'PREPARE DEMO'} onPress={() => onPrepare(activeDemo.id)} />}
+    </Card>
+    <Pressable accessibilityLabel="Scan an error" accessibilityRole="button" onPress={onScan} style={({ pressed }) => [styles.scanHero, pressed && styles.pressed]}><Text style={styles.scanHeroIcon}>▣</Text><View style={styles.titleCopy}><Text style={styles.scanHeroTitle}>SCAN ERROR</Text><Text style={styles.scanHeroCopy}>Camera → on-device OCR → review</Text></View><Text style={styles.scanHeroArrow}>›</Text></Pressable>
+    <View style={styles.secondaryActionRow}><Pressable accessibilityLabel="Speak a PocketPilot command" accessibilityRole="button" onPress={onSpeak} style={styles.presentationAction}><Text style={styles.presentationActionLabel}>SPEAK COMMAND</Text><Text style={styles.presentationActionCopy}>Safe actions only</Text></Pressable><Pressable accessibilityLabel="Paste an error" accessibilityRole="button" onPress={onPaste} style={styles.presentationAction}><Text style={styles.presentationActionLabel}>PASTE ERROR</Text><Text style={styles.presentationActionCopy}>Camera fallback</Text></Pressable></View>
+    {currentSession !== null && <Card><View style={styles.titleRow}><View style={styles.titleCopy}><Eyebrow>CURRENT SESSION</Eyebrow><Text numberOfLines={2} style={styles.cardTitle}>{currentSession.title}</Text></View><StateBadge state={currentSession.state} /></View><SecondaryButton label="NEW SESSION" onPress={onNewSession} /></Card>}
+    <Card><Eyebrow>REGISTERED DEMOS</Eyebrow>{demos.map((demo) => <View key={demo.id} style={styles.demoMobileRow}><View style={styles.titleCopy}><Text style={styles.sessionTitle}>{demo.name}</Text><Text style={styles.cardCopy}>{demo.status.replaceAll('_', ' ')} · {demo.language}</Text></View><Pressable accessibilityLabel={`Select ${demo.name}`} disabled={busy !== null || demo.status === 'TOOL_MISSING'} onPress={() => onSelectDemo(demo.id)}><Text style={styles.link}>{activeDemo?.id === demo.id ? 'ACTIVE' : 'SELECT'}</Text></Pressable>{activeDemo?.id === demo.id && <Pressable accessibilityLabel={`Reset ${demo.name}`} disabled={busy !== null} onPress={() => onResetDemo(demo.id)}><Text style={styles.link}>RESET</Text></Pressable>}</View>)}</Card>
+    <Text style={styles.networkTruth}>IMAGE · ON DEVICE   SOURCE · LAPTOP   VOICE · ANDROID SERVICE{`\n`}AI · {providerLabel(provider)}</Text>
+  </ScrollView>;
+}
+
+function ReadinessItem({ good, label, value }: { good: boolean; label: string; value: string }) {
+  return <View style={styles.readinessItem}><View style={styles.readinessLabel}><StatusDot good={good} /><Text style={styles.eyebrow}>{label}</Text></View><Text numberOfLines={2} style={styles.readinessValue}>{value}</Text></View>;
 }
 
 function PairingScreen({ onPaired }: { onPaired: (connection: StoredConnection) => void }) {
@@ -478,8 +536,9 @@ function PairingScreen({ onPaired }: { onPaired: (connection: StoredConnection) 
   );
 }
 
-function HomeScreen({ activeDemoId, busy, currentSession, demoMode, demos, onPaste, onResetDemo, onScan, onSelectDemo, onSpeak, provider, state }: { activeDemoId: string | null; busy: string | null; currentSession: DebugSession | null; demoMode: boolean; demos: ReadonlyArray<DemoProject>; onPaste: () => void; onResetDemo: (id: string) => void; onScan: () => void; onSelectDemo: (id: string) => void; onSpeak: () => void; provider: ProviderHealth | null; state: WorkflowState }) {
+function HomeScreen({ activeDemoId, busy, currentSession, demoMode, demos, onNewSession, onPaste, onPrepare, onResetDemo, onScan, onSelectDemo, onSpeak, provider, readiness, speechCapability, state }: { activeDemoId: string | null; busy: string | null; currentSession: DebugSession | null; demoMode: boolean; demos: ReadonlyArray<DemoProject>; onNewSession: () => void; onPaste: () => void; onPrepare: (id: string) => void; onResetDemo: (id: string) => void; onScan: () => void; onSelectDemo: (id: string) => void; onSpeak: () => void; provider: ProviderHealth | null; readiness: PreDemoCheckResult | null; speechCapability: SpeechCapability | null; state: WorkflowState }) {
   const activeDemo = demos.find((demo) => demo.id === activeDemoId);
+  if (demoMode) return <PresentationHome activeDemo={activeDemo} busy={busy} currentSession={currentSession} demos={demos} onNewSession={onNewSession} onPaste={onPaste} onPrepare={onPrepare} onResetDemo={onResetDemo} onScan={onScan} onSelectDemo={onSelectDemo} onSpeak={onSpeak} provider={provider} readiness={readiness} speechCapability={speechCapability} state={state} />;
   return (
     <ScrollView contentContainerStyle={styles.scrollPage}>
       <Text style={styles.homeTitle}>See it. Say it.{`\n`}Fix it.</Text>
@@ -521,7 +580,7 @@ function DebugScreen(props: {
   onApprove: () => void; onChangeError: (value: string) => void; onChangeLanguage: (value: string) => void;
   onGenerate: () => void; onLoadDemo: () => void; onReject: () => void; onReset: () => void; onRollback: () => void;
   onRetry: () => void; onSpeak: () => void; onStart: () => void; patch: PatchWorkflowView | null; session: DebugSession | null;
-  steps: ReadonlyArray<{ label: string; complete: boolean; active: boolean }>; workspaceReady: boolean;
+  steps: ReadonlyArray<{ label: string; complete: boolean; active: boolean }>; validationCommand: string; workspaceReady: boolean;
 }) {
   if (props.session === null) {
     return (
@@ -537,7 +596,7 @@ function DebugScreen(props: {
   }
   return (
     <ScrollView contentContainerStyle={styles.scrollPage}>
-      <View style={styles.titleRow}><View style={styles.titleCopy}><Eyebrow>LIVE DEBUG SESSION</Eyebrow><Text style={styles.screenTitle}>{props.session.title}</Text></View><View style={styles.sessionActions}><Pressable accessibilityLabel="Speak a contextual command" accessibilityRole="button" onPress={props.onSpeak} style={styles.voiceMini}><Text style={styles.voiceMiniText}>●</Text></Pressable><StateBadge state={props.session.state} /></View></View>
+      <View style={styles.titleRow}><View style={styles.titleCopy}><Eyebrow>LIVE DEBUG SESSION</Eyebrow><Text style={styles.screenTitle}>{sessionDisplayTitle(props.session, props.analysis)}</Text></View><View style={styles.sessionActions}><Pressable accessibilityLabel="Speak a contextual command" accessibilityRole="button" onPress={props.onSpeak} style={styles.voiceMini}><Text style={styles.voiceMiniText}>●</Text></Pressable><StateBadge state={props.session.state} /></View></View>
       <Pipeline steps={props.steps} />
       {props.analysis !== null && <RootCause analysis={props.analysis} busy={props.busy !== null} canGenerate={props.session.state === 'ROOT_CAUSE_FOUND'} onGenerate={props.onGenerate} />}
       {props.session.state === 'ROOT_CAUSE_FOUND' && props.patch === null && props.busy === null && <SecondaryButton label="REVIEW ERROR TEXT" onPress={props.onReset} />}
@@ -547,7 +606,7 @@ function DebugScreen(props: {
         {props.session.retry_count < 2 && <SecondaryButton label="TRY ANALYSIS AGAIN" onPress={props.onRetry} />}
         <SecondaryButton label="START OVER" onPress={props.onReset} />
       </Card>}
-      {props.patch !== null && <PatchPanel busy={props.busy} onApprove={props.onApprove} onReject={props.onReject} onRetry={props.onRetry} onRollback={props.onRollback} patch={props.patch} session={props.session} />}
+      {props.patch !== null && <PatchPanel busy={props.busy} onApprove={props.onApprove} onReject={props.onReject} onRetry={props.onRetry} onRollback={props.onRollback} patch={props.patch} session={props.session} validationCommand={props.validationCommand} />}
       {['SUCCESS', 'ROLLED_BACK'].includes(props.session.state) && <SecondaryButton label="DONE" onPress={props.onReset} />}
     </ScrollView>
   );
@@ -559,22 +618,23 @@ function Pipeline({ steps }: { steps: ReadonlyArray<{ label: string; complete: b
 
 function RootCause({ analysis, busy, canGenerate, onGenerate }: { analysis: AnalysisRecord; busy: boolean; canGenerate: boolean; onGenerate: () => void }) {
   const result = analysis.result;
-  return <Card><View style={styles.titleRow}><View><Eyebrow>ROOT CAUSE</Eyebrow><Text style={styles.sourceNote}>{analysis.input_source} INPUT</Text></View><Badge label={`${result.confidence} CONFIDENCE`} tone={result.confidence === 'HIGH' ? 'good' : 'warn'} /></View><Text style={styles.cardTitle}>{result.summary}</Text><Text style={styles.rootCause}>{result.root_cause}</Text><Info label="LOCATION" value={`${result.likely_file ?? 'Not established'}${result.likely_line === null ? '' : ` · line ${result.likely_line}`}${result.likely_symbol === null ? '' : ` · ${result.likely_symbol}`}`} /><Info label="WHY" value={result.explanation} /><Info label="REPAIR STRATEGY" value={result.repair_strategy} />{result.evidence.map((item) => <View key={`${item.relative_path}:${item.line ?? 0}`} style={styles.evidence}><Text style={styles.codeText}>{item.relative_path}{item.line === null ? '' : `:${item.line}`}</Text><Text style={styles.evidenceText}>{item.observation}</Text></View>)}{canGenerate && <PrimaryButton accessibilityLabel="Generate fix" disabled={busy} label={busy ? 'GENERATING FIX…' : 'GENERATE FIX'} onPress={onGenerate} />}</Card>;
+  return <Card accent><View style={styles.titleRow}><View><Eyebrow>ROOT CAUSE FOUND</Eyebrow><Text style={styles.sourceNote}>{analysis.input_source} INPUT · {providerLabelFromRecord(analysis)}</Text></View><Badge label={`${result.confidence} CONFIDENCE`} tone={result.confidence === 'HIGH' ? 'good' : 'warn'} /></View><Text style={styles.judgeLocation}>{result.likely_file ?? 'Location not established'}{result.likely_line === null ? '' : ` · LINE ${result.likely_line}`}</Text><Info label="PROBLEM" value={result.root_cause} /><Info label="EVIDENCE" value={result.explanation} /><Info label="REPAIR STRATEGY" value={result.repair_strategy} />{result.evidence.slice(0, 2).map((item) => <View key={`${item.relative_path}:${item.line ?? 0}`} style={styles.evidence}><Text style={styles.codeText}>{item.relative_path}{item.line === null ? '' : `:${item.line}`}</Text><Text style={styles.evidenceText}>{item.observation}</Text></View>)}{canGenerate && <PrimaryButton accessibilityLabel="Generate fix" disabled={busy} label={busy ? 'GENERATING FIX…' : 'GENERATE FIX'} onPress={onGenerate} />}</Card>;
 }
 
-function PatchPanel({ busy, onApprove, onReject, onRetry, onRollback, patch, session }: { busy: string | null; onApprove: () => void; onReject: () => void; onRetry: () => void; onRollback: () => void; patch: PatchWorkflowView; session: DebugSession }) {
+function PatchPanel({ busy, onApprove, onReject, onRetry, onRollback, patch, session, validationCommand }: { busy: string | null; onApprove: () => void; onReject: () => void; onRetry: () => void; onRollback: () => void; patch: PatchWorkflowView; session: DebugSession; validationCommand: string }) {
   const [openFiles, setOpenFiles] = useState<ReadonlyArray<string>>(patch.proposal.files.map((file) => file.relative_path));
+  const [approvalOpen, setApprovalOpen] = useState(false);
   const awaiting = patch.status === 'AWAITING_APPROVAL';
   const rollback = patch.rollback_status === 'AVAILABLE' && ['VERIFIED', 'FAILED'].includes(patch.status);
   if (session.state === 'SUCCESS') return <SuccessPanel patch={patch} onRollback={onRollback} />;
   if (session.state === 'FAILED') return <FailurePanel patch={patch} retryCount={session.retry_count} onRetry={onRetry} onRollback={onRollback} />;
   if (session.state === 'ROLLED_BACK') return <Card><Text style={styles.heroStatus}>↩ FIX UNDONE</Text><Text style={styles.cardCopy}>Files restored to their pre-fix state.</Text></Card>;
-  return <Card><View style={styles.titleRow}><View><Eyebrow>PATCH REVIEW</Eyebrow><Text style={styles.cardTitle}>{patch.proposal.title}</Text></View><Badge label={`${patch.validation.risk} RISK`} tone={patch.validation.risk === 'LOW' ? 'good' : patch.validation.risk === 'MEDIUM' ? 'warn' : 'bad'} /></View><Text style={styles.cardCopy}>{patch.proposal.summary}</Text><View style={styles.metrics}><Metric label="FILES" value={String(patch.validation.files_changed)} /><Metric label="ADDED" value={`+${patch.validation.additions}`} /><Metric label="REMOVED" value={`-${patch.validation.deletions}`} /></View>{patch.proposal.files.map((file) => { const open = openFiles.includes(file.relative_path); return <View key={file.relative_path} style={styles.diffCard}><Pressable accessibilityLabel={`Toggle diff for ${file.relative_path}`} onPress={() => setOpenFiles(open ? openFiles.filter((path) => path !== file.relative_path) : [...openFiles, file.relative_path])} style={styles.diffHeader}><Text style={styles.codeText}>{file.relative_path}</Text><Text style={styles.diffCount}>+{file.additions} −{file.deletions} {open ? '⌃' : '⌄'}</Text></Pressable>{open && <ScrollView horizontal><View style={styles.diffBody}>{file.unified_diff.split('\n').map((line, index) => <Text key={`${index}-${line}`} style={[styles.diffLine, line.startsWith('+') && styles.diffAdd, line.startsWith('-') && styles.diffRemove]}>{line || ' '}</Text>)}</View></ScrollView>}</View>; })}{awaiting && <><Text style={styles.approvalNote}>PocketPilot will modify {patch.validation.files_changed} file{patch.validation.files_changed === 1 ? '' : 's'} and run the approved project validation command.</Text><PrimaryButton accessibilityLabel="Approve fix" disabled={busy !== null} label={busy === 'approve' ? 'APPLYING & TESTING…' : 'APPROVE FIX'} onPress={onApprove} /><SecondaryButton label="REJECT" onPress={onReject} /></>}{['APPLYING', 'APPLIED'].includes(patch.status) || session.state === 'TESTING' ? <View style={styles.progressBox}><ActivityIndicator color="#C8FF3D" /><Text style={styles.cardCopy}>{session.state === 'TESTING' ? 'Running approved tests…' : 'Applying approved fix…'}</Text></View> : null}{rollback && <SecondaryButton label="UNDO FIX" onPress={onRollback} />}</Card>;
+  return <Card><View style={styles.titleRow}><View><Eyebrow>PROPOSED FIX</Eyebrow><Text style={styles.cardTitle}>{patch.proposal.title}</Text></View><Badge label={`${patch.validation.risk} RISK`} tone={patch.validation.risk === 'LOW' ? 'good' : patch.validation.risk === 'MEDIUM' ? 'warn' : 'bad'} /></View><Text style={styles.cardCopy}>{patch.proposal.summary}</Text><View style={styles.metrics}><Metric label="FILES" value={String(patch.validation.files_changed)} /><Metric label="ADDED" value={`+${patch.validation.additions}`} /><Metric label="REMOVED" value={`-${patch.validation.deletions}`} /></View>{patch.proposal.files.map((file) => { const open = openFiles.includes(file.relative_path); return <View key={file.relative_path} style={styles.diffCard}><Pressable accessibilityLabel={`Toggle diff for ${file.relative_path}`} onPress={() => setOpenFiles(open ? openFiles.filter((path) => path !== file.relative_path) : [...openFiles, file.relative_path])} style={styles.diffHeader}><Text style={styles.codeText}>{file.relative_path}</Text><Text style={styles.diffCount}>+{file.additions} −{file.deletions} {open ? '⌃' : '⌄'}</Text></Pressable>{open && <ScrollView horizontal><View style={styles.diffBody}>{file.unified_diff.split('\n').map((line, index) => <Text key={`${index}-${line}`} style={[styles.diffLine, line.startsWith('+') && styles.diffAdd, line.startsWith('-') && styles.diffRemove]}>{line || ' '}</Text>)}</View></ScrollView>}</View>; })}<Info label="WHY THIS FIX" value={patch.proposal.rationale} /><Info label="EXPECTED EFFECT" value={patch.proposal.expected_effect} />{awaiting && !approvalOpen && <><Text style={styles.approvalNote}>Human approval is required before any file changes.</Text><PrimaryButton accessibilityLabel="Review approval for fix" disabled={busy !== null} label="APPROVE FIX" onPress={() => setApprovalOpen(true)} /><SecondaryButton label="REJECT" onPress={onReject} /></>}{awaiting && approvalOpen && <View style={styles.confirmationCard}><Eyebrow>READY TO APPLY</Eyebrow><Text style={styles.cardTitle}>{patch.validation.files_changed} source file{patch.validation.files_changed === 1 ? '' : 's'} will change.</Text><Text style={styles.cardCopy}>PocketPilot will then run:</Text><Text style={styles.confirmationCommand}>{validationCommand}</Text><Text style={styles.voiceFallback}>Noisy venue? Tap CONFIRM. Voice maps to this exact same secure action.</Text><PrimaryButton accessibilityLabel="Confirm and apply fix" disabled={busy !== null} label={busy === 'approve' ? 'APPLYING & TESTING…' : 'CONFIRM'} onPress={onApprove} /><SecondaryButton label="CANCEL" onPress={() => setApprovalOpen(false)} /></View>}{['APPLYING', 'APPLIED'].includes(patch.status) || session.state === 'TESTING' ? <View style={styles.progressBox}><ActivityIndicator color="#C8FF3D" /><View><Text style={styles.progressTitle}>{session.state === 'TESTING' ? 'RUNNING APPROVED TESTS' : 'APPLYING APPROVED FIX'}</Text><Text style={styles.cardCopy}>Session remains recoverable if the phone disconnects.</Text></View></View> : null}{rollback && <SecondaryButton label="UNDO FIX" onPress={onRollback} />}</Card>;
 }
 
 function SuccessPanel({ patch, onRollback }: { patch: PatchWorkflowView; onRollback: () => void }) {
   const [detail, setDetail] = useState<'NONE' | 'EXPLANATION' | 'DIFF'>('NONE');
-  return <Card accent><Text style={[styles.heroStatus, styles.successText]}>✓ FIX VERIFIED</Text><Text style={styles.cardCopy}>{patch.test_result?.detail ?? 'The approved validation command passed.'}</Text><View style={styles.metrics}><Metric label="TESTS" value="PASSED" /><Metric label="CHANGED" value={`${patch.application?.files_changed ?? patch.validation.files_changed} file${patch.validation.files_changed === 1 ? '' : 's'}`} /><Metric label="TIME" value={`${patch.test_result?.duration_ms ?? 0}ms`} /></View><View style={styles.successActions}><SecondaryButton label="EXPLAIN FIX" onPress={() => setDetail(detail === 'EXPLANATION' ? 'NONE' : 'EXPLANATION')} /><SecondaryButton label="VIEW DIFF" onPress={() => setDetail(detail === 'DIFF' ? 'NONE' : 'DIFF')} /></View>{detail === 'EXPLANATION' && <Info label="WHY THIS FIX WORKS" value={`${patch.proposal.rationale}\n\n${patch.proposal.expected_effect}`} />}{detail === 'DIFF' && patch.proposal.files.map((file) => <View key={file.relative_path} style={styles.diffCard}><View style={styles.diffHeader}><Text style={styles.codeText}>{file.relative_path}</Text></View><ScrollView horizontal><View style={styles.diffBody}>{file.unified_diff.split('\n').map((line, index) => <Text key={`${index}-${line}`} style={[styles.diffLine, line.startsWith('+') && styles.diffAdd, line.startsWith('-') && styles.diffRemove]}>{line || ' '}</Text>)}</View></ScrollView></View>)}<SecondaryButton label="UNDO FIX" onPress={onRollback} /></Card>;
+  return <Card accent><Text style={[styles.heroStatus, styles.successText]}>✓ FIX VERIFIED</Text><Text style={styles.successStatement}>Tests passed after the patch.</Text><View style={styles.metrics}><Metric label="TESTS PASSED" value={testCount(patch)} /><Metric label="FILE CHANGED" value={String(patch.application?.files_changed ?? patch.validation.files_changed)} /><Metric label="PROVIDER" value={providerLabelForPatch(patch)} /></View><View style={styles.successActions}><SecondaryButton label="WHAT CHANGED?" onPress={() => setDetail(detail === 'EXPLANATION' ? 'NONE' : 'EXPLANATION')} /><SecondaryButton label="VIEW DIFF" onPress={() => setDetail(detail === 'DIFF' ? 'NONE' : 'DIFF')} /></View>{detail === 'EXPLANATION' && <Info label="WHAT CHANGED" value={`${patch.proposal.rationale}\n\n${patch.proposal.expected_effect}`} />}{detail === 'DIFF' && patch.proposal.files.map((file) => <View key={file.relative_path} style={styles.diffCard}><View style={styles.diffHeader}><Text style={styles.codeText}>{file.relative_path}</Text></View><ScrollView horizontal><View style={styles.diffBody}>{file.unified_diff.split('\n').map((line, index) => <Text key={`${index}-${line}`} style={[styles.diffLine, line.startsWith('+') && styles.diffAdd, line.startsWith('-') && styles.diffRemove]}>{line || ' '}</Text>)}</View></ScrollView></View>)}<SecondaryButton label="UNDO FIX" onPress={onRollback} /><Text style={styles.finalTagline}>See it. Say it. Fix it. · PocketPilot AI</Text></Card>;
 }
 
 function FailurePanel({ patch, retryCount, onRetry, onRollback }: { patch: PatchWorkflowView; retryCount: number; onRetry: () => void; onRollback: () => void }) {
@@ -586,10 +646,10 @@ function SessionsScreen({ sessions, busy, onOpen, onRefresh }: { sessions: Reado
 }
 
 function SettingsScreen({ connection, demoMode, onDemoMode, onDisconnect, speechCapability, ttsAvailable }: { connection: StoredConnection; demoMode: boolean; onDemoMode: (value: boolean) => void; onDisconnect: () => void; speechCapability: SpeechCapability | null; ttsAvailable: boolean }) {
-  return <ScrollView contentContainerStyle={styles.scrollPage}><Eyebrow>SETTINGS</Eyebrow><Text style={styles.screenTitle}>Device connection</Text><Card><Info label="LAPTOP ADDRESS" value={connection.serverAddress} /><Info label="DEVICE" value={connection.displayName} /><Info label="DEVICE ID" value={connection.deviceId} /><Text style={styles.securityCopy}>The token is stored in Android secure storage. Source code, secrets, and rollback snapshots remain on the laptop.</Text><SecondaryButton label="DISCONNECT PHONE" onPress={onDisconnect} /></Card><Pressable accessibilityLabel="Toggle demo mode" onPress={() => onDemoMode(!demoMode)} style={styles.settingRow}><View style={styles.titleCopy}><Text style={styles.settingTitle}>Demo Mode</Text><Text style={styles.cardCopy}>Shows guided camera and voice command suggestions. Backend results stay real.</Text></View><Text style={[styles.toggle, demoMode && styles.toggleOn]}>{demoMode ? 'ON' : 'OFF'}</Text></Pressable><Card><Eyebrow>VOICE</Eyebrow><Text style={styles.cardTitle}>Push-to-talk commands</Text><Info label="MICROPHONE / RECOGNITION" value={speechCapability === null ? 'Open Speak Command to detect' : speechCapability.available ? 'READY' : 'UNAVAILABLE'} /><Info label="LOCALE" value={speechCapability?.locale ?? 'English (India)'} /><Info label="RECOGNITION SERVICE" value={speechCapability?.provider_name ?? 'Not detected'} /><Info label="OFFLINE SPEECH" value={speechCapability?.offline_verified ? 'VERIFIED' : speechCapability?.offline_supported ? 'SUPPORTED · NOT VERIFIED' : 'NOT VERIFIED / UNAVAILABLE'} /><Info label="TEXT TO SPEECH" value={ttsAvailable ? 'READY' : 'NOT DETECTED'} /><Text style={styles.securityCopy}>PocketPilot does not retain microphone audio. The selected Android speech service may use a network unless on-device recognition is verified.</Text></Card><Card><Eyebrow>VISION PRIVACY</Eyebrow><Text style={styles.cardTitle}>On-device OCR</Text><Text style={styles.cardCopy}>Camera and gallery images remain on the phone. Only text you inspect and confirm is sent to the paired laptop.</Text></Card></ScrollView>;
+  return <ScrollView contentContainerStyle={styles.scrollPage}><Eyebrow>SETTINGS</Eyebrow><Text style={styles.screenTitle}>Device connection</Text><Card><Info label="LAPTOP ADDRESS" value={connection.serverAddress} /><Info label="DEVICE" value={connection.displayName} /><Info label="DEVICE ID" value={connection.deviceId} /><Text style={styles.securityCopy}>The token is stored in Android secure storage. Source code, secrets, and rollback snapshots remain on the laptop.</Text><SecondaryButton label="DISCONNECT PHONE" onPress={onDisconnect} /></Card><Pressable accessibilityLabel="Toggle presentation mode" accessibilityRole="switch" accessibilityState={{ checked: demoMode }} onPress={() => onDemoMode(!demoMode)} style={styles.settingRow}><View style={styles.titleCopy}><Text style={styles.settingTitle}>Presentation Mode</Text><Text style={styles.cardCopy}>Prioritizes judge-facing states while keeping every backend action and safety check real.</Text></View><Text style={[styles.toggle, demoMode && styles.toggleOn]}>{demoMode ? 'ON' : 'OFF'}</Text></Pressable><Card><Eyebrow>VOICE</Eyebrow><Text style={styles.cardTitle}>Push-to-talk commands</Text><Info label="MICROPHONE / RECOGNITION" value={speechCapability === null ? 'Open Speak Command to detect' : speechCapability.available ? 'READY' : 'UNAVAILABLE'} /><Info label="LOCALE" value={speechCapability?.locale ?? 'English (India)'} /><Info label="RECOGNITION SERVICE" value={speechCapability?.provider_name ?? 'Not detected'} /><Info label="OFFLINE SPEECH" value={speechCapability?.offline_verified ? 'VERIFIED' : speechCapability?.offline_supported ? 'SUPPORTED · NOT VERIFIED' : 'NOT VERIFIED / UNAVAILABLE'} /><Info label="TEXT TO SPEECH" value={ttsAvailable ? 'READY' : 'NOT DETECTED'} /><Text style={styles.securityCopy}>PocketPilot does not retain microphone audio. The selected Android speech service may use a network unless on-device recognition is verified.</Text></Card><Card><Eyebrow>VISION PRIVACY</Eyebrow><Text style={styles.cardTitle}>On-device OCR</Text><Text style={styles.cardCopy}>Camera and gallery images remain on the phone. Only text you inspect and confirm is sent to the paired laptop.</Text></Card></ScrollView>;
 }
 
-function Header({ connection }: { connection: string }) { return <View style={styles.header}><Brand /><View style={styles.connectionPill}><StatusDot good={connection === 'CONNECTED'} /><Text style={styles.connectionText}>{connection}</Text></View></View>; }
+function Header({ connection, presentationMode }: { connection: string; presentationMode: boolean }) { return <View style={styles.header}><Brand />{presentationMode && <Text style={styles.presentationPill}>PRESENTATION</Text>}<View style={styles.connectionPill}><StatusDot good={connection === 'CONNECTED'} /><Text style={styles.connectionText}>{connection}</Text></View></View>; }
 function Brand() { return <View style={styles.brand}><View style={styles.mark}><Text style={styles.markText}>P</Text></View><View><Text style={styles.brandName}>POCKETPILOT</Text><Text style={styles.brandSub}>PHONE CONTROL</Text></View></View>; }
 function TabBar({ active, onSelect }: { active: Tab; onSelect: (tab: Tab) => void }) { const tabs: ReadonlyArray<[Tab, string]> = [['HOME', '⌂'], ['DEBUG', '⌘'], ['SESSIONS', '≡'], ['SETTINGS', '⚙']]; return <View style={styles.tabBar}>{tabs.map(([tab, icon]) => <Pressable accessibilityLabel={tab} key={tab} onPress={() => onSelect(tab)} style={styles.tab}><Text style={[styles.tabIcon, active === tab && styles.tabActive]}>{icon}</Text><Text style={[styles.tabLabel, active === tab && styles.tabActive]}>{tab}</Text></Pressable>)}</View>; }
 function Card({ children, accent = false }: { children: React.ReactNode; accent?: boolean }) { return <View style={[styles.card, accent && styles.cardAccent]}>{children}</View>; }
@@ -611,11 +671,22 @@ function handleError(error: unknown, setError: (message: string) => void, onUnau
     setError('Device session expired. Opening secure pairing…');
     onUnauthorized?.();
   }
-  else setError(error instanceof Error ? error.message : 'PocketPilot could not complete the request.');
+  else {
+    const raw = error instanceof Error ? error.message : 'PocketPilot could not complete the request.';
+    if (/revision|stale|outdated/i.test(raw)) setError('THIS FIX IS OUTDATED — The file changed after this patch was created. Generate a fresh fix before applying it.');
+    else if (/timeout|timed out/i.test(raw)) setError('THE REQUEST TOOK TOO LONG — Your session is safe. Try the same action again.');
+    else if (/provider|ollama/i.test(raw)) setError('AI PROVIDER UNAVAILABLE — Your session is safe. Restore the configured provider, then try again.');
+    else setError(raw);
+  }
 }
 function conciseTitle(text: string): string { const first = text.split('\n').find((line) => line.trim())?.trim() ?? 'Mobile debug issue'; return first.slice(0, 80); }
+function sessionDisplayTitle(session: DebugSession, analysis: AnalysisRecord | null): string { const result = analysis?.result; if (result?.likely_file === undefined || result.likely_file === null) return session.title; return `${result.likely_file}${result.likely_line === null ? '' : `:${result.likely_line}`}`; }
 function demoDirectoryName(demoId: string): string { return demoId === 'python-null-user' ? 'python-broken-app' : demoId === 'java-null-user' ? 'java-broken-app' : 'react-broken-app'; }
 function relativeTime(value: string): string { const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000)); if (seconds < 60) return 'Now'; if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`; if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr ago`; return `${Math.floor(seconds / 86400)} day ago`; }
+function providerLabel(provider: ProviderHealth | null): string { if (provider === null) return 'Checking'; if (provider.provider.toLowerCase() === 'mock') return 'Deterministic Demo Provider'; if (provider.provider.toLowerCase() === 'ollama') return provider.available ? `Ollama · ${provider.model}` : 'Ollama unavailable'; return `${provider.provider} · ${provider.model}`; }
+function providerLabelFromRecord(analysis: AnalysisRecord): string { return analysis.provider.toLowerCase() === 'mock' ? 'DETERMINISTIC DEMO PROVIDER' : `${analysis.provider.toUpperCase()} · ${analysis.model}`; }
+function providerLabelForPatch(patch: PatchWorkflowView): string { return patch.proposal.provider.toLowerCase() === 'mock' ? 'DEMO' : patch.proposal.provider.toUpperCase(); }
+function testCount(patch: PatchWorkflowView): string { const output = `${patch.test_result?.command?.stdout ?? ''}\n${patch.test_result?.command?.stderr ?? ''}`; const match = output.match(/(\d+)\s+passed/i); return match === null ? 'PASSED' : `${match[1]} / ${match[1]}`; }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#070A0F' }, app: { flex: 1, backgroundColor: '#070A0F' }, content: { flex: 1 }, splash: { flex: 1, padding: 28, justifyContent: 'space-between', backgroundColor: '#070A0F' },
@@ -636,5 +707,11 @@ const styles = StyleSheet.create({
   demoMobileRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 14, borderTopWidth: 1, borderTopColor: '#273025', paddingTop: 10 },
   settingRow: { padding: 18, borderWidth: 1, borderColor: '#283126', borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, settingTitle: { color: '#E8ECE4', fontSize: 15, fontWeight: '700' }, toggle: { color: '#7A8476', fontSize: 11, fontWeight: '900' }, toggleOn: { color: '#C8FF3D' }, securityCopy: { color: '#737D70', fontSize: 11, lineHeight: 18 },
   errorBanner: { margin: 12, padding: 13, paddingRight: 80, borderRadius: 12, borderWidth: 1, borderColor: '#6A372E', backgroundColor: '#251512', gap: 10 }, errorCopy: { alignSelf: 'stretch' }, errorTitle: { color: '#FF8B75', fontSize: 8, fontWeight: '900', letterSpacing: 1 }, errorMessage: { color: '#D5A89F', fontSize: 10, lineHeight: 15, marginTop: 4 }, retry: { color: '#F0C96B', fontSize: 9, fontWeight: '900' },
+  presentationPill: { color: '#0B1008', backgroundColor: '#C8FF3D', overflow: 'hidden', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 5, fontSize: 7, fontWeight: '900', letterSpacing: .7 },
+  presentationPage: { padding: 18, paddingBottom: 42, gap: 13 }, presentationIntro: { paddingVertical: 20 }, presentationTitle: { color: '#F4F7F1', fontSize: 42, lineHeight: 44, letterSpacing: -2, fontWeight: '900', marginTop: 9 }, presentationCopy: { color: '#8C9688', fontSize: 13, lineHeight: 20, marginTop: 12, maxWidth: 420 },
+  readinessGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, readinessItem: { width: '48%', minHeight: 68, padding: 10, borderWidth: 1, borderColor: '#2A3427', borderRadius: 10, backgroundColor: '#090D0A' }, readinessLabel: { flexDirection: 'row', alignItems: 'center', gap: 7 }, readinessValue: { color: '#E4EAE0', fontSize: 11, lineHeight: 15, fontWeight: '700', marginTop: 8 },
+  scanHero: { minHeight: 112, flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 18, padding: 18, backgroundColor: '#C8FF3D' }, scanHeroIcon: { color: '#0A0E08', fontSize: 27 }, scanHeroTitle: { color: '#0A0E08', fontSize: 18, fontWeight: '900', letterSpacing: .8 }, scanHeroCopy: { color: '#364321', fontSize: 11, marginTop: 5 }, scanHeroArrow: { color: '#0A0E08', fontSize: 32, fontWeight: '400' },
+  secondaryActionRow: { flexDirection: 'row', gap: 10 }, presentationAction: { flex: 1, minHeight: 86, padding: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#394433', borderRadius: 14, backgroundColor: '#0E140F' }, presentationActionLabel: { color: '#EEF2EA', fontSize: 10, fontWeight: '900', letterSpacing: .7 }, presentationActionCopy: { color: '#737D70', fontSize: 9, marginTop: 5 }, networkTruth: { color: '#667061', textAlign: 'center', fontSize: 8, lineHeight: 14, letterSpacing: .4 },
+  judgeLocation: { color: '#C8FF3D', fontSize: 18, lineHeight: 24, fontWeight: '800', fontFamily: 'monospace' }, confirmationCard: { gap: 12, padding: 15, borderRadius: 14, borderWidth: 1, borderColor: '#7A6130', backgroundColor: '#17140B' }, confirmationCommand: { color: '#C8FF3D', backgroundColor: '#080C09', padding: 12, borderRadius: 9, fontSize: 11, lineHeight: 17, fontFamily: 'monospace' }, voiceFallback: { color: '#D3B867', fontSize: 10, lineHeight: 16 }, progressTitle: { color: '#DCE5D7', fontSize: 11, fontWeight: '900', letterSpacing: .6 }, successStatement: { color: '#DDE5D8', fontSize: 16, lineHeight: 23 }, finalTagline: { color: '#C8FF3D', textAlign: 'center', fontSize: 11, fontWeight: '800', letterSpacing: .4, paddingTop: 5 },
   tabBar: { minHeight: 72, paddingBottom: 5, borderTopWidth: 1, borderTopColor: '#202720', backgroundColor: '#090D0A', flexDirection: 'row' }, tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 }, tabIcon: { color: '#596258', fontSize: 17 }, tabLabel: { color: '#596258', fontSize: 8, fontWeight: '800', letterSpacing: .8 }, tabActive: { color: '#C8FF3D' },
 });

@@ -125,6 +125,38 @@ def test_phone_safe_demo_selection_uses_server_registered_path(
     ).resolve()
 
 
+def test_prepare_demo_resets_verifies_and_selects_registered_python(
+    tmp_path: Path, demo_root: Path
+) -> None:
+    app = app_for(tmp_path, demo_root)
+    source = demo_root / "python-broken-app" / "user_service.py"
+    source.write_text("def get_user_name(user):\n    return 'already fixed'\n", encoding="utf-8")
+
+    response = anyio.run(
+        request, app, "POST", "/api/v1/demo/prepare/python-null-user"
+    )
+
+    assert response.status_code == 200, response.text
+    prepared = response.json()
+    assert prepared["result"] == "READY_FOR_NEXT_DEMO"
+    assert prepared["demo"]["status"] == "READY"
+    assert prepared["workspace"]["name"] == "python-broken-app"
+    assert prepared["readiness"]["overall"] in {"READY", "READY_WITH_TOOL_GAPS"}
+    assert 'return user["name"]' in source.read_text(encoding="utf-8")
+
+
+def test_prepare_demo_rejects_path_like_identifier(
+    tmp_path: Path, demo_root: Path
+) -> None:
+    app = app_for(tmp_path, demo_root)
+
+    response = anyio.run(
+        request, app, "POST", "/api/v1/demo/prepare/%2e%2e%252foutside"
+    )
+
+    assert response.status_code in {404, 422}
+
+
 def test_java_mock_analysis_and_patch_are_available_without_maven(
     tmp_path: Path, demo_root: Path
 ) -> None:

@@ -256,9 +256,29 @@ Verification evidence (2026-09-07):
 
 Depends on: M8.
 
-- Premium phone-first states, subtle timeline animation, history, offline/demo readiness, and one-command startup.
+- [x] Dedicated desktop/mobile Presentation Mode over the real workflow.
+- [x] Judge-readable mobile home, OCR review, root cause, diff, approval, progress, and success states.
+- [x] Truthful Ollama vs Deterministic Demo Provider labeling and network/privacy indicators.
+- [x] Registered-ID-only Prepare Demo operation and distinct New Session vs Reset Demo actions.
+- [x] Desktop above-the-fold readiness, live architecture path, expandable technical details, and reduced clutter.
+- [x] Plain-language timeout/provider/stale-patch recovery plus persisted-session resume.
+- [x] Safe startup and PocketPilot-owned shutdown helpers.
+- [x] Five-cycle Python / three-cycle React benchmark tooling.
+- [x] Three-minute, 60-second, 30-second pitch, judge Q&A, recovery guide, and event checklist.
+- [x] Final full automated regression, physical Android hero run, and timed physical rehearsal.
 
-Acceptance criteria: full demo completes repeatedly within three minutes after a clean reset and remains legible on the target Android device.
+Acceptance criteria: full demo completes repeatedly within three minutes after a clean reset and remains legible on the target Android device. Passed on the physical iQOO phone on 2026-09-08.
+
+Verification evidence (2026-09-08):
+
+- Desktop Presentation Mode was visually checked at 1366×768. One-click Python preparation returned `READY_WITH_TOOL_GAPS`, truthfully labeled the Deterministic Demo Provider, and exposed Maven as `TOOL_MISSING`.
+- The physical iQOO phone rendered the new Presentation Home, re-paired over the authenticated LAN bridge, captured the real pytest terminal failure, and produced a HIGH-confidence bounded root cause at `user_service.py:5`.
+- The phone generated and displayed the genuine one-file, two-line `None` guard, required explicit approval, ran real pytest, and showed `FIX VERIFIED`, `2/2` tests passed, one file changed, provider `DEMO`, diff/explanation controls, and Undo.
+- Physical rollback displayed `FIX UNDONE` and restored the exact broken file. A second uninterrupted physical rehearsal completed from GO to `FIX VERIFIED` in 42.3 seconds; the backend independently recorded the new SUCCESS session.
+- The timed session spent 71 ms in confirmed-text analysis, 31 ms generating/validating the patch, and 829 ms applying the approved patch plus real tests. The entire backend session after confirmed OCR completed in 12.0 seconds.
+- Reliability benchmark passed Python 5/5 and React 3/3 repair/pass/rollback cycles. Java remained an honest conditional skip because Maven is not installed.
+- Safe shutdown/restart was exercised against owned process records; an agent matcher defect was found during the rehearsal, corrected, and the subsequent two-process stop/start round trip passed.
+- Final regression passed Ruff; backend pytest passed 118 with 5 documented skips; Vitest passed desktop 3, mobile 137, and shared 6 tests; ESLint, strict TypeScript, desktop production build, mobile web export, Expo Doctor 21/21, and Android config introspection passed.
 
 ### M10 — Verified iQOO integration (P2)
 

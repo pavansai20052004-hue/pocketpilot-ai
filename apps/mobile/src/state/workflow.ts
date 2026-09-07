@@ -49,11 +49,11 @@ export function pipelineStatus(state: WorkflowState): ReadonlyArray<{ label: str
   const sessionState = state.session?.state;
   return [
     { label: 'Error captured', complete: names.has('error_captured'), active: sessionState === 'CAPTURED' },
-    { label: 'Parsing', complete: names.has('error_parsed'), active: names.has('analysis_requested') && !names.has('error_parsed') },
-    { label: 'Selecting context', complete: names.has('context_collection_completed'), active: names.has('context_collection_started') && !names.has('context_collection_completed') },
-    { label: 'Local AI analysis', complete: names.has('root_cause_found'), active: names.has('analysis_provider_started') && !names.has('root_cause_found') },
-    { label: 'Root cause', complete: names.has('root_cause_found'), active: sessionState === 'ROOT_CAUSE_FOUND' },
-    { label: 'Patch', complete: names.has('patch_applied'), active: ['PATCH_GENERATED', 'AWAITING_APPROVAL', 'PATCH_APPLYING'].includes(sessionState ?? '') },
-    { label: 'Verification', complete: sessionState === 'SUCCESS', active: sessionState === 'TESTING' },
+    { label: 'Error parsed', complete: names.has('error_parsed'), active: names.has('analysis_requested') && !names.has('error_parsed') },
+    { label: 'Repository context selected', complete: names.has('context_collection_completed'), active: names.has('context_collection_started') && !names.has('context_collection_completed') },
+    { label: 'Provider analysis', complete: names.has('analysis_provider_completed'), active: names.has('analysis_provider_started') && !names.has('analysis_provider_completed') },
+    { label: 'Root cause found', complete: names.has('root_cause_found'), active: sessionState === 'ROOT_CAUSE_FOUND' },
+    { label: 'Fix approved & applied', complete: names.has('patch_applied'), active: ['PATCH_GENERATED', 'AWAITING_APPROVAL', 'PATCH_APPLYING'].includes(sessionState ?? '') },
+    { label: 'Tests verified', complete: sessionState === 'SUCCESS', active: sessionState === 'TESTING' },
   ];
 }

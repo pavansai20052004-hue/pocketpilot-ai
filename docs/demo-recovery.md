@@ -15,4 +15,22 @@ Use only real outputs. Never describe a canned fixture as a live run.
 | Maven unavailable | Show Java as `TOOL_MISSING`; switch to React or Python. Do not use the Java text fixture as a live runtime claim. |
 | React dependencies missing | Run the documented pre-event `npm ci --ignore-scripts`; during judging switch to Python instead of installing. |
 
-Exact backup switch: close the current voice/camera sheet, choose **React User Profile** (or **Java User Service**) under Hackathon Demos, press Reset, wait for READY, and run the displayed safe test command. No filesystem path is sent by the phone.
+Exact backup switch: close the current voice/camera sheet, choose **React User Profile** under Hackathon Demos, press Reset, wait for READY, and run the displayed safe test command. Use **Java User Service** only when its card reports `READY`; on this laptop Maven is `TOOL_MISSING`. No filesystem path is sent by the phone.
+
+## Fast recovery order
+
+1. Keep the current session; do not approve or rerun an uncertain action.
+2. Read the plain-language **What happened** message.
+3. Reconnect or restore the missing provider, then tap **Try Again**.
+4. If the source is already fixed or uncertain, use **Reset Demo Project**—not **New Session**.
+5. If recovery would consume presentation time, prepare the React backup and identify the switch to judges.
+
+`NEW SESSION` clears only PocketPilot workflow state. `RESET DEMO PROJECT` restores only the registered canonical source and reproduces its expected failing test.
+
+## Venue fallbacks
+
+- **Speech:** use the same visible button after one failed attempt. Voice resolves to a closed typed intent and does not grant extra capability.
+- **Camera:** retake with larger terminal text; then edit the reviewed OCR transcript; finally use **Paste Error**.
+- **Provider:** show the unavailable state. A presenter may deliberately restart with the visibly labeled **Deterministic Demo Provider**; never switch silently.
+- **Phone disconnect during tests:** wait for the backend to finish, reconnect, and resume the persisted session. Do not approve again.
+- **Outdated patch:** generate a fresh patch. Never force-apply against changed source.

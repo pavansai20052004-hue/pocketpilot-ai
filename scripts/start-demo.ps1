@@ -12,7 +12,7 @@ if (-not (Test-Path -LiteralPath $vite -PathType Leaf)) {
 }
 foreach ($port in @(8000, 4173)) {
     if ($null -ne (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)) {
-        throw "Port $port is already in use. Run npm run demo:check and use or stop the existing service."
+        throw "Port $port is already in use. If PocketPilot is already running, open the dashboard. Otherwise run npm run demo:stop before retrying."
     }
 }
 
@@ -40,4 +40,14 @@ if ($null -ne $lanAddress) {
 } else {
     Write-Output 'On the phone, pair with http://<laptop-LAN-address>:8000.'
 }
-Write-Output 'Stop the two processes from Task Manager or with Stop-Process using the PIDs above.'
+$runtimeRoot = Join-Path $repositoryRoot '.pocketpilot'
+New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
+$processRecord = @{
+    repository_root = $repositoryRoot
+    agent_pid = $(if ($null -ne $agentProcessId) { $agentProcessId } else { $agent.Id })
+    desktop_pid = $(if ($null -ne $desktopProcessId) { $desktopProcessId } else { $desktop.Id })
+    started_at = (Get-Date).ToUniversalTime().ToString('o')
+}
+$processRecord | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runtimeRoot 'demo-processes.json') -Encoding UTF8
+Write-Output 'Next: open the dashboard, select Python User Service, choose PREPARE DEMO, then pair the phone.'
+Write-Output 'Use npm run demo:stop for a safe PocketPilot-only shutdown.'

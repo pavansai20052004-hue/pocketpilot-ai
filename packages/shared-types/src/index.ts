@@ -360,3 +360,9 @@ export interface PreDemoCheckResult {
   readonly provider: string;
   readonly model: string;
 }
+export interface PrepareDemoResult {
+  readonly demo: DemoProject;
+  readonly workspace: WorkspaceInfo;
+  readonly readiness: PreDemoCheckResult;
+  readonly result: 'READY_FOR_NEXT_DEMO';
+}

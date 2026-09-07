@@ -12,6 +12,7 @@ from pocketpilot_agent.models import (
     DemoResetResult,
     DemoSelection,
     PreDemoCheckResult,
+    PrepareDemoResult,
 )
 
 router = APIRouter(prefix="/api/v1/demo", tags=["demo"])
@@ -66,3 +67,13 @@ def verify_demo(demo_id: str, service: DemoDependency) -> DemoProject:
 @router.get("/preflight", response_model=PreDemoCheckResult)
 async def preflight(service: DemoDependency) -> PreDemoCheckResult:
     return await service.preflight()
+
+
+@router.post("/prepare/{demo_id}", response_model=PrepareDemoResult)
+async def prepare_demo(demo_id: str, service: DemoDependency) -> PrepareDemoResult:
+    try:
+        return await service.prepare(demo_id)
+    except UnknownDemoError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
+    except DemoResetError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
