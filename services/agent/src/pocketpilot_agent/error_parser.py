@@ -13,8 +13,12 @@ class ErrorParser:
         r"\bat\s+(?P<symbol>[\w.$<>]+)\((?P<path>[^():]+\.java):(?P<line>\d+)\)"
     )
     _python_frame = re.compile(
-        r'File "(?P<path>[^"]+\.py)", line (?P<line>\d+)'
-        r'(?:, in (?P<symbol>\S+))?'
+        r'\bFile[ \t]*"(?P<path>[^"\r\n]+\.py)"[ \t]*,[ \t]*line[ \t]+(?P<line>\d+)'
+        r'(?:[ \t]*,[ \t]*in[ \t]+(?P<symbol>\S+))?'
+    )
+    _pytest_frame = re.compile(
+        r'^[ \t]*(?P<path>[^\r\n]+?\.py):[ \t]*(?P<line>\d+):[ \t]*in[ \t]+(?P<symbol>\w+)[ \t]*$',
+        re.MULTILINE,
     )
     _js_frame = re.compile(
         r"(?:\bat\s+(?:(?P<symbol>[\w.$<>]+)\s+\()?)(?P<path>[^\s():]+\.(?:[cm]?[jt]sx?)):(?P<line>\d+)(?::\d+)?\)?"
@@ -32,6 +36,7 @@ class ErrorParser:
         patterns = (
             ("Java", self._java_frame),
             ("Python", self._python_frame),
+            ("Python", self._pytest_frame),
             ("JavaScript/TypeScript", self._js_frame),
         )
         for pattern_language, pattern in patterns:

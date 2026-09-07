@@ -3,12 +3,31 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiClient, normalizeBaseUrl, type Fetcher } from './client';
 import { pairDevice, parsePairDeviceResponse } from './devices';
 import { analyzeText } from './analysis';
+import { decidePatch, generatePatch } from './patches';
+import { getWorkspace } from './workspaces';
 
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
 describe('mobile API client', () => {
+  it('treats an unselected workspace as an empty state and recovers after laptop selection', async () => {
+    const workspace = { id: 'workspace-demo', name: 'python-broken-app' };
+    const fetcher = vi.fn<Fetcher>()
+      .mockResolvedValueOnce(jsonResponse({ detail: 'No workspace is selected.' }, 404))
+      .mockResolvedValueOnce(jsonResponse(workspace));
+    const client = new ApiClient({ baseUrl: 'http://laptop:8000', token: 'token', fetcher });
+    await expect(getWorkspace(client)).resolves.toBeNull();
+    await expect(getWorkspace(client)).resolves.toEqual(workspace);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([401, 403, 500])('does not hide workspace request failure %s', async (status) => {
+    const fetcher = vi.fn<Fetcher>().mockResolvedValue(jsonResponse({ detail: 'Request failed.' }, status));
+    const client = new ApiClient({ baseUrl: 'http://laptop:8000', token: 'token', fetcher });
+    await expect(getWorkspace(client)).rejects.toMatchObject({ status });
+  });
+
   it('normalizes a manual laptop address', () => {
     expect(normalizeBaseUrl('192.168.1.23:8000/')).toBe('http://192.168.1.23:8000');
   });
@@ -65,5 +84,20 @@ describe('mobile API client', () => {
     expect(body).toMatchObject({ input_type: 'CAMERA', raw_text: 'TypeError: boom' });
     expect(JSON.stringify(body)).not.toContain('image');
     expect(JSON.stringify(body)).not.toContain('file:///');
+  });
+
+  it('marks voice-triggered application actions without changing their safe API route', async () => {
+    const fetcher = vi.fn<Fetcher>().mockResolvedValue(jsonResponse({ session: {}, workflow: {} }));
+    const client = new ApiClient({ baseUrl: 'http://laptop:8000', token: 'token', fetcher });
+    const session = { id: 'session-1', revision: 4 } as Parameters<typeof generatePatch>[1];
+    const patch = { proposal: { id: 'patch-1' } } as Parameters<typeof decidePatch>[2];
+    await generatePatch(client, session, 'VOICE');
+    await decidePatch(client, session, patch, 'approve', 'VOICE');
+
+    const generated = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    const approved = JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body)) as Record<string, unknown>;
+    expect(generated).toEqual({ expected_revision: 4, action_source: 'VOICE' });
+    expect(approved).toEqual({ expected_revision: 4, action_source: 'VOICE' });
+    expect(fetcher.mock.calls[1]?.[0]).toContain('/patches/patch-1/approve');
   });
 });

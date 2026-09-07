@@ -4,13 +4,13 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 6 Camera Vision Debugger has passed physical Android validation. The Android development build captures or imports an error image, preprocesses it, runs offline on-device OCR, requires editable confirmation, and sends only confirmed text to the paired laptop. Voice and iQOO Office Kit are not implemented.
+> Current phase: Milestone 7 safe push-to-talk voice commands are implemented and physically verified on Android. Milestone 6 camera/OCR remains verified. Voice maps transcripts onto a closed, state-checked intent set; approval and rollback require confirmation, and speech never becomes a shell or filesystem command. iQOO Office Kit is not implemented.
 
 ## Foundation architecture
 
 | Component | Technology | Current responsibility |
 | --- | --- | --- |
-| Phone client | Expo development build, React Native, TypeScript, ML Kit | Camera/gallery OCR, authenticated debug, approval, verification, history, and rollback UI |
+| Phone client | Expo development build, React Native, TypeScript, ML Kit, Android SpeechRecognizer/TTS | Camera/gallery OCR, safe push-to-talk commands, authenticated debug, approval, verification, history, and rollback UI |
 | Desktop dashboard | Vite, React, TypeScript | Workspace selection, pairing, device revocation, logs, and fallback UI |
 | Local agent | FastAPI, Pydantic, Python | Secure repository actions, persistent sessions, bounded local analysis |
 | Shared contracts | TypeScript package | Cross-client workspace, repository, and command contracts |
@@ -55,7 +55,7 @@ Use `127.0.0.1` instead of `0.0.0.0` when phone access is not needed. LAN mode a
 1. Open the dashboard URL printed by Vite and inspect one explicit workspace (for the demo, use `demo/python-broken-app`).
 2. In **Device Connection**, generate a six-digit pairing code and note the displayed laptop address.
 3. Start Expo, open it on Android, enter the address and code, and connect.
-4. On the phone choose **Scan Error** for camera/gallery OCR or **Paste Error** for text, confirm the input, then analyze, generate, review, approve, verify, or undo the real fix.
+4. On the phone choose **Scan Error**, **Speak Command**, or **Paste Error**. Voice can request existing actions but cannot bypass review, confirmation, revisions, validation, or rollback protection.
 
 The phone cannot browse or select laptop paths. Pairing codes expire after five minutes, allow five guesses, and are single-use. Android stores the opaque device token in Expo SecureStore; the laptop persists only its SHA-256 hash.
 
@@ -68,6 +68,8 @@ npx expo start --dev-client --lan
 ```
 
 The physical phone installs the APK from the EAS build page and connects to the Metro server on the same private Wi-Fi. A local Android SDK/ADB workflow remains available through `npm run android` followed by `npm run android:metro`. See [the vision debugger guide](docs/vision-debugger.md).
+
+Voice recognition and TTS also use native modules and require rebuilding the development APK after dependency/configuration changes. PocketPilot uses push-to-talk, shows the recognized transcript, deterministically resolves a closed intent, checks current session state, and asks for a second confirmation before approval or rollback. See [the voice engine guide](docs/voice-engine.md).
 
 ## Physical Android verification
 
@@ -156,8 +158,9 @@ docs/              Architecture and hackathon documentation
 - Pairing codes are random, memory-only, expiring, single-use, and guess-limited. Device tokens are returned once and stored only as hashes server-side.
 - Camera/gallery OCR runs on the phone. Image URIs and bytes never enter the agent API; only user-confirmed text and `CAMERA`/`GALLERY` provenance do.
 - Camera and processed cache files are deleted after use. Gallery originals are external inputs and are never deleted.
+- Voice audio is handled by the phone’s selected speech service and is not stored by PocketPilot. Only transcripts enter the closed intent resolver; voice has no shell, filesystem, or direct PatchEngine access.
 
-See [the mobile guide](docs/mobile-app.md), [vision debugger guide](docs/vision-debugger.md), [local AI guide](docs/local-ai.md), [patch-engine guide](docs/patch-engine.md), and [security model](docs/security-model.md).
+See [the mobile guide](docs/mobile-app.md), [vision debugger guide](docs/vision-debugger.md), [voice engine guide](docs/voice-engine.md), [local AI guide](docs/local-ai.md), [patch-engine guide](docs/patch-engine.md), and [security model](docs/security-model.md).
 
 ## License
 

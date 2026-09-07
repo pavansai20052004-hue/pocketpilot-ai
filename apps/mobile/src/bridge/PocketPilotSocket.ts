@@ -48,11 +48,16 @@ export class PocketPilotSocket {
     this.cancel = options.cancel ?? clearTimeout;
   }
 
-  connect(sessionId: string, afterSequence = this.lastSequence): void {
-    this.socket?.close();
+  connect(sessionId: string, afterSequence?: number): void {
+    this.clearReconnect();
+    const oldSocket = this.socket;
     this.socket = null;
+    oldSocket?.close();
+    this.lastSequence = sessionId === this.sessionId
+      ? Math.max(this.lastSequence, afterSequence ?? 0)
+      : afterSequence ?? 0;
     this.sessionId = sessionId;
-    this.lastSequence = Math.max(this.lastSequence, afterSequence);
+    this.reconnectAttempt = 0;
     this.active = true;
     this.open();
   }
@@ -87,7 +92,7 @@ export class PocketPilotSocket {
       this.reconnectAttempt = 0;
       this.options.callbacks.onStatus('CONNECTED');
     };
-    socket.onmessage = (event) => this.receive(event.data);
+    socket.onmessage = (event) => { if (this.socket === socket) this.receive(event.data); };
     socket.onerror = () => undefined;
     socket.onclose = (event) => {
       if (this.socket !== socket) return;

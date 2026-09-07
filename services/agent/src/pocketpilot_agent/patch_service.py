@@ -14,6 +14,7 @@ from pocketpilot_agent.analysis_provider import AnalysisProviderError
 from pocketpilot_agent.analysis_store import AnalysisStore
 from pocketpilot_agent.event_broker import SessionEventBroker
 from pocketpilot_agent.models import (
+    ActionSource,
     AgentEventName,
     AnalysisStatus,
     CommandStatus,
@@ -56,6 +57,10 @@ class PatchDecisionError(ValueError):
     pass
 
 
+def _action_source_suffix(source: ActionSource) -> str:
+    return " through a confirmed voice action" if source is ActionSource.VOICE else ""
+
+
 class PatchService:
     def __init__(
         self,
@@ -86,7 +91,10 @@ class PatchService:
         self._lock = asyncio.Lock()
 
     async def generate(
-        self, session_id: str, expected_revision: int
+        self,
+        session_id: str,
+        expected_revision: int,
+        action_source: ActionSource = ActionSource.MOBILE_UI,
     ) -> PatchGenerationResponse:
         await self._claim(session_id)
         transitioned = False
@@ -100,7 +108,7 @@ class PatchService:
             await self._progress(
                 session_id,
                 AgentEventName.PATCH_GENERATION_STARTED,
-                "Untrusted local patch generation started.",
+                f"Untrusted local patch generation started{_action_source_suffix(action_source)}.",
             )
             generation_started = time.perf_counter()
             prompt = self.prompts.build(session_id, analysis, sources, session.retry_count)
@@ -203,7 +211,11 @@ class PatchService:
             await self._release(session_id)
 
     async def reject(
-        self, session_id: str, patch_id: str, expected_revision: int
+        self,
+        session_id: str,
+        patch_id: str,
+        expected_revision: int,
+        action_source: ActionSource = ActionSource.MOBILE_UI,
     ) -> PatchActionResponse:
         await self._claim(session_id)
         try:
@@ -218,7 +230,10 @@ class PatchService:
                 session_id,
                 DebugState.FAILED,
                 expected_revision,
-                "Patch rejected by the user; no files were modified.",
+                (
+                    f"Patch rejected by the user{_action_source_suffix(action_source)}; "
+                    "no files were modified."
+                ),
             )
             await self.events.publish(rejected.event)
             record.status = PatchStatus.REJECTED
@@ -228,7 +243,11 @@ class PatchService:
             await self._release(session_id)
 
     async def approve(
-        self, session_id: str, patch_id: str, expected_revision: int
+        self,
+        session_id: str,
+        patch_id: str,
+        expected_revision: int,
+        action_source: ActionSource = ActionSource.MOBILE_UI,
     ) -> PatchActionResponse:
         await self._claim(session_id)
         applying_revision: int | None = None
@@ -246,7 +265,10 @@ class PatchService:
                 session_id,
                 DebugState.PATCH_APPLYING,
                 expected_revision,
-                "Exact validated patch approved by the user.",
+                (
+                    "Exact validated patch approved by the user"
+                    f"{_action_source_suffix(action_source)}."
+                ),
             )
             applying_revision = approved.session.revision
             await self.events.publish(approved.event)
@@ -336,7 +358,11 @@ class PatchService:
             await self._release(session_id)
 
     async def rollback(
-        self, session_id: str, patch_id: str, expected_revision: int
+        self,
+        session_id: str,
+        patch_id: str,
+        expected_revision: int,
+        action_source: ActionSource = ActionSource.MOBILE_UI,
     ) -> PatchActionResponse:
         await self._claim(session_id)
         try:
@@ -349,7 +375,7 @@ class PatchService:
             await self._progress(
                 session_id,
                 AgentEventName.ROLLBACK_STARTED,
-                "Conflict-safe rollback started.",
+                f"Conflict-safe rollback started{_action_source_suffix(action_source)}.",
             )
             try:
                 rollback_ms = self.engine.rollback(

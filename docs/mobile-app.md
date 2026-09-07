@@ -4,7 +4,7 @@
 
 The Android app is the primary PocketPilot experience. It pairs to a local laptop agent, captures or imports an error for on-device OCR, accepts pasted text, follows real events, reviews actual unified diffs, approves or rejects a revision-bound patch, displays real validation, and requests conflict-safe rollback. The desktop remains the workspace and device-administration surface.
 
-Camera/OCR is implemented and physically verified in a native Android development build. Voice control and iQOO Office Kit remain visibly unimplemented.
+Camera/OCR and the safe voice workflow are implemented and physically verified in a native Android development build. Voice approval, real validation, TTS, rollback, dangerous-command rejection, and foreground recovery were completed by 2026-09-07. iQOO Office Kit remains unimplemented.
 
 ## Architecture
 
@@ -19,6 +19,14 @@ Navigation uses four touch-friendly tabs: Home, Debug, Sessions, and Settings. T
 
 **Scan Error** opens a local vision flow above normal tab navigation. Camera permission denial offers retry, gallery fallback, and Android Settings recovery when the OS no longer allows prompting. A captured image remains local through guide crop/rotation and ML Kit recognition. The user must edit or confirm the extracted text before `ANALYZE ERROR` can call the existing session API.
 
+## Push-to-talk voice
+
+**Speak Command** opens the voice sheet from Home, and the active Debug screen exposes a contextual microphone. The sheet detects the Android recognition service, requests microphone permission only after a tap, displays partial/final transcription, reports confidence only when supplied by Android, and resolves a closed English command set. Demo Mode displays suggested phrases but never injects canned recognition or actions.
+
+Read-only commands can respond immediately from existing structured analysis, patch, session, and test data. “Fix this” uses the same Generate Fix function as the button. “Approve fix” and “Undo fix” pause for a second button or narrow voice confirmation before calling the same revision-bound API functions as their visible controls. Confirmation expires after 30 seconds, and current state is checked again before execution.
+
+The UI includes permission-denied and permanent-denial recovery, recognizer unavailable/no-speech/no-match/network/busy/timeout/cancelled messages, a Stop Speaking control, short local transcript-to-intent history, and measured recognition/resolution/action/TTS timing fields. It does not store microphone audio. Recognition may use the phone speech service’s network unless on-device operation is physically verified; camera, OCR, and manual input remain available when voice is not.
+
 ## Pairing
 
 1. Start the agent on the laptop with `--host 0.0.0.0` only when LAN access is needed.
@@ -27,7 +35,7 @@ Navigation uses four touch-friendly tabs: Home, Debug, Sessions, and Settings. T
 4. Enter the displayed `address:port`, six-digit code, and device name on the phone.
 5. The app exchanges the code once and stores the returned opaque token in Android secure storage.
 
-Codes expire in five minutes, permit five guesses, and are single-use. Device tokens expire after 24 hours by default. Revoking a device on the desktop invalidates its next HTTP request and WebSocket connection immediately.
+Codes expire in five minutes, permit five guesses, and are single-use. Device tokens expire after 24 hours by default. Revoking a device on the desktop invalidates its next HTTP request and WebSocket connection immediately. An expired or revoked credential is removed from secure storage and returns the app directly to secure pairing instead of leaving an unusable disconnected dashboard.
 
 ## Local network setup
 
@@ -37,7 +45,7 @@ Manual address entry is the reliable path. Automatic discovery is intentionally 
 
 ## Live events and reconnection
 
-The mobile WebSocket sends the token as its first private message and includes only the greatest processed `after_sequence` in the URL, preventing credential leakage through access logs. It receives no snapshot before authentication. Duplicate or older sequences are discarded. Disconnects retry after 1, 2, 4, 8, then at most 15 seconds. A `4401` or `4403` authentication close stops retries and asks the user to pair again.
+The mobile WebSocket sends the token as its first private message and includes only the greatest processed `after_sequence` for that session in the URL, preventing credential leakage through access logs. Switching sessions resets the cursor and ignores late messages from the previous socket. It receives no snapshot before authentication. Duplicate or older sequences are discarded. Disconnects retry after 1, 2, 4, 8, then at most 15 seconds. A `4401` or `4403` authentication close stops retries and asks the user to pair again.
 
 When Android backgrounds the app, the socket may close normally. On foreground, the bridge reconnects, the dashboard metadata refreshes, and the active session/analysis/patch is reconciled from the server. The phone never relies solely on transient socket delivery.
 

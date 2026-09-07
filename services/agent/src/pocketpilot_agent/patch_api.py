@@ -52,7 +52,7 @@ async def generate_patch(
     session_id: str, payload: GeneratePatchRequest, service: PatchDependency
 ) -> PatchGenerationResponse:
     try:
-        return await service.generate(session_id, payload.expected_revision)
+        return await service.generate(session_id, payload.expected_revision, payload.action_source)
     except (SessionNotFoundError, AnalysisNotFoundError) as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
     except AnalysisProviderError as exc:
@@ -104,7 +104,9 @@ async def approve_patch(
     service: PatchDependency,
 ) -> PatchActionResponse:
     try:
-        return await service.approve(session_id, patch_id, payload.expected_revision)
+        return await service.approve(
+            session_id, patch_id, payload.expected_revision, payload.action_source
+        )
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
     except (
@@ -137,7 +139,9 @@ async def reject_patch(
     service: PatchDependency,
 ) -> PatchActionResponse:
     try:
-        return await service.reject(session_id, patch_id, payload.expected_revision)
+        return await service.reject(
+            session_id, patch_id, payload.expected_revision, payload.action_source
+        )
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
     except (
@@ -162,7 +166,9 @@ async def rollback_patch(
     service: PatchDependency,
 ) -> PatchActionResponse:
     try:
-        return await service.rollback(session_id, patch_id, payload.expected_revision)
+        return await service.rollback(
+            session_id, patch_id, payload.expected_revision, payload.action_source
+        )
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
     except (

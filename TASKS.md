@@ -10,8 +10,8 @@ This is the execution checklist for the hackathon prototype. A milestone is comp
 - **Complete:** Milestone 3 — local analysis provider
 - **Complete:** Milestone 4 — patch lifecycle
 - **Complete:** Milestone 5 — authenticated mobile bridge and complete text-debug workflow
-- **Implemented, physical Android validation pending:** Milestone 6 — Camera Vision Debugger / OCR
-- **Next after approval:** Milestone 7 — constrained voice actions
+- **Complete:** Milestone 6 — Camera Vision Debugger / OCR, verified on Android
+- **Complete:** Milestone 7 — constrained voice actions, verified on Android
 
 ## Dependency path
 
@@ -212,9 +212,21 @@ Verification evidence (2026-09-04):
 
 Depends on: M5.
 
-- Speech adapter and fixed intent mapping for supported actions.
+- [x] Android push-to-talk recognition adapter plus deterministic mock, explicit permission recovery, capability metadata, and honest offline status.
+- [x] Closed deterministic `VoiceIntent` resolver with contextual aliases, dangerous-command rejection, and no unrestricted AI fallback.
+- [x] State-aware validator and application-only executor that reuse existing button actions and preserve backend revision/hash/rollback protection.
+- [x] Two-step approval and rollback confirmation with narrow voice confirmation, manual controls, revalidation, and timeout.
+- [x] Android TTS plus deterministic mock, bounded structured response formatting, stop-before-listen audio sequencing, and concise explanations.
+- [x] Home Speak Command, contextual Debug microphone, transcript/intent/status UI, accessibility labels, local command history, capability Settings, and real latency capture.
+- [x] Separate `VOICE` action provenance without confusing camera/text error provenance; no stored audio or new audio-upload endpoint.
+- [x] Automated intent, dangerous phrase, state, confirmation boundary, executor isolation, provider, response, API provenance, and regression coverage.
+- [x] Physical recognition and command matching for analysis, generation, explanation, and showing the patch; audible TTS, Stop Speaking, and subsequent listening confirmed by the user.
+- [x] Rendered voice-sheet regression reproduces and fixes lost confirmation after no speech; retry retains its original target and deadline, with a visible countdown.
+- [x] Invalidate cancelled/backgrounded listening callbacks, prevent overlapping microphone starts, recover from transcript-free completion, and supply state-specific fixed command hints; covered by rendered and adapter tests.
+- [x] Reset the event cursor when switching debug sessions so earlier pipeline events are not discarded; reject late events from the old socket.
+- [x] Physical voice approval and rollback, dangerous-command rejection, background/foreground recovery, natural-accent behavior, and signature-demo verification; venue-level noise remains a documented limitation.
 
-Acceptance criteria: supported phrases map to typed actions; arbitrary speech cannot become a shell command.
+Acceptance criteria: supported phrases map to typed actions; arbitrary speech cannot become a shell command. Passed on a physical Android phone on 2026-09-07.
 
 ### M9 — Hackathon demo repositories (P0)
 

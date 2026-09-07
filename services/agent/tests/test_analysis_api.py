@@ -155,6 +155,33 @@ def test_unimplemented_voice_input_remains_rejected(
     assert "confirmed text" in response.json()["detail"]
 
 
+def test_voice_action_provenance_is_recorded_without_changing_input_source(
+    tmp_path: Path, java_project: Path
+) -> None:
+    app = build_app(tmp_path)
+    session_id = prepare_captured(app, java_project)
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/analyze",
+        {
+            "input_type": "TEXT",
+            "raw_text": "ValueError: invalid value",
+            "expected_revision": 1,
+            "action_source": "VOICE",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["analysis"]["input_source"] == "TEXT"
+    events = anyio.run(
+        request, app, "GET", f"/api/v1/sessions/{session_id}/events"
+    ).json()["events"]
+    requested = next(event for event in events if event["name"] == "analysis_requested")
+    assert "confirmed voice action" in requested["summary"]
+
+
 def test_analysis_requires_selected_workspace(tmp_path: Path) -> None:
     app = build_app(tmp_path)
     created = anyio.run(request, app, "POST", "/api/v1/sessions", {"title": "No root"})

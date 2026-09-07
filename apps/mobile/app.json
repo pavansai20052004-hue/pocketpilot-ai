@@ -27,8 +27,18 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow PocketPilot to choose a screenshot for private on-device text recognition.",
-          "microphonePermission": false
+          "photosPermission": "Allow PocketPilot to choose a screenshot for private on-device text recognition."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow PocketPilot to hear push-to-talk voice commands.",
+          "speechRecognitionPermission": "Allow PocketPilot to turn push-to-talk speech into safe app commands.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
         }
       ],
       [

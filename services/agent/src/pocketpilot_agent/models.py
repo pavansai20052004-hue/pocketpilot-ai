@@ -261,6 +261,12 @@ class ErrorInputType(StrEnum):
     CLIPBOARD = "CLIPBOARD"
 
 
+class ActionSource(StrEnum):
+    DESKTOP_UI = "DESKTOP_UI"
+    MOBILE_UI = "MOBILE_UI"
+    VOICE = "VOICE"
+
+
 class AnalysisStatus(StrEnum):
     COMPLETED = "COMPLETED"
     PROVIDER_UNAVAILABLE = "PROVIDER_UNAVAILABLE"
@@ -351,6 +357,7 @@ class AnalyzeSessionRequest(StrictModel):
     language_hint: str | None = Field(default=None, max_length=100)
     framework_hint: str | None = Field(default=None, max_length=100)
     expected_revision: int = Field(ge=0)
+    action_source: ActionSource = ActionSource.MOBILE_UI
 
     @field_validator("raw_text")
     @classmethod
@@ -478,10 +485,12 @@ class PatchProviderOutput(StrictModel):
 
 class GeneratePatchRequest(StrictModel):
     expected_revision: int = Field(ge=0)
+    action_source: ActionSource = ActionSource.MOBILE_UI
 
 
 class PatchDecisionRequest(StrictModel):
     expected_revision: int = Field(ge=0)
+    action_source: ActionSource = ActionSource.MOBILE_UI
 
 
 class PatchApplicationResult(StrictModel):

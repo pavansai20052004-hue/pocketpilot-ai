@@ -20,6 +20,7 @@ from pocketpilot_agent.analysis_validation import (
 from pocketpilot_agent.error_parser import ErrorParser
 from pocketpilot_agent.event_broker import SessionEventBroker
 from pocketpilot_agent.models import (
+    ActionSource,
     AgentEventName,
     AnalysisExecutionResponse,
     AnalysisRecord,
@@ -42,6 +43,10 @@ class AnalysisInProgressError(RuntimeError):
 
 class UnsupportedAnalysisInputError(ValueError):
     pass
+
+
+def _action_source_suffix(source: ActionSource) -> str:
+    return " through a confirmed voice action" if source is ActionSource.VOICE else ""
 
 
 class AnalysisService:
@@ -96,7 +101,8 @@ class AnalysisService:
                 AgentEventName.ANALYSIS_REQUESTED,
                 (
                     "Local root-cause analysis requested from "
-                    f"{request.input_type.value.lower()} text."
+                    f"{request.input_type.value.lower()} text"
+                    f"{_action_source_suffix(request.action_source)}."
                 ),
             )
             transitioned = self.sessions.transition(

@@ -67,13 +67,18 @@ def start_through_analysis(app: FastAPI, root: Path) -> tuple[str, dict[str, obj
     return session_id, analyzed
 
 
-def generate(app: FastAPI, session_id: str, revision: int) -> dict[str, object]:
+def generate(
+    app: FastAPI,
+    session_id: str,
+    revision: int,
+    action_source: str = "MOBILE_UI",
+) -> dict[str, object]:
     response = anyio.run(
         request,
         app,
         "POST",
         f"/api/v1/sessions/{session_id}/patches/generate",
-        {"expected_revision": revision},
+        {"expected_revision": revision, "action_source": action_source},
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -95,7 +100,9 @@ def test_real_end_to_end_apply_persist_and_rollback(tmp_path: Path) -> None:
     original = (root / "user_service.py").read_bytes()
 
     session_id, analyzed = start_through_analysis(app, root)
-    generated = generate(app, session_id, analyzed["session"]["revision"])
+    generated = generate(
+        app, session_id, analyzed["session"]["revision"], action_source="VOICE"
+    )
     workflow = generated["workflow"]
     assert generated["session"]["state"] == "AWAITING_APPROVAL"
     assert (root / "user_service.py").read_bytes() == original
@@ -105,7 +112,10 @@ def test_real_end_to_end_apply_persist_and_rollback(tmp_path: Path) -> None:
         app,
         "POST",
         f"/api/v1/sessions/{session_id}/patches/{patch_id}/approve",
-        {"expected_revision": generated["session"]["revision"]},
+        {
+            "expected_revision": generated["session"]["revision"],
+            "action_source": "VOICE",
+        },
     )
     assert approved.status_code == 200, approved.text
     applied = approved.json()
@@ -134,7 +144,10 @@ def test_real_end_to_end_apply_persist_and_rollback(tmp_path: Path) -> None:
         restarted,
         "POST",
         f"/api/v1/sessions/{session_id}/patches/{patch_id}/rollback",
-        {"expected_revision": applied["session"]["revision"]},
+        {
+            "expected_revision": applied["session"]["revision"],
+            "action_source": "VOICE",
+        },
     )
     assert rolled_back.status_code == 200, rolled_back.text
     assert rolled_back.json()["session"]["state"] == "ROLLED_BACK"
@@ -160,6 +173,10 @@ def test_real_end_to_end_apply_persist_and_rollback(tmp_path: Path) -> None:
     assert [event["sequence"] for event in events] == list(
         range(1, len(events) + 1)
     )
+    voice_summaries = [
+        event["summary"] for event in events if "confirmed voice action" in event["summary"]
+    ]
+    assert len(voice_summaries) >= 3
 
 
 def test_stale_patch_and_rollback_conflict_preserve_manual_edits(tmp_path: Path) -> None:

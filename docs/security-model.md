@@ -120,3 +120,13 @@ Image ownership is explicit. Camera captures and every preprocessed derivative a
 OCR output is untrusted user input. Conservative normalization does not guess ambiguous alphanumeric characters. A deterministic postprocessor can trim only a short non-technical prefix before a clear error anchor and records that action as a warning. Secret-like strings and instruction/prompt-injection patterns are highlighted before analysis. No warning automatically edits, executes, uploads, or approves anything, and the user must explicitly confirm editable text before the authenticated analysis call.
 
 The offline-bundled Latin model avoids first-run model download and cloud OCR. The development build still depends on Android/Google ML Kit native compatibility; Expo Go and the web export cannot execute OCR. Physical network-off and cleanup behavior must be verified on the target device before claiming an end-to-end privacy pass.
+
+## Voice command security boundary
+
+Milestone 7 adds push-to-talk speech as an input to a closed application-action interface, not as a command language. The Android recognition adapter produces a transcript only. A deterministic resolver can return only a declared `VoiceIntent`; shell, terminal, PowerShell, curl, publishing, destructive filesystem, git-reset, and instruction-override phrases are rejected as `UNKNOWN`. There is no unrestricted AI fallback.
+
+The state validator checks the current session, patch status, available structured records, and retry count. Read-only explanations use stored validated data. Patch generation invokes the existing mobile callback but cannot write. Approval and rollback require a second confirmation that accepts only narrow yes/no phrases and expires after 30 seconds. Immediately before execution, the intent is revalidated, after which the existing authenticated endpoint still enforces patch ID, expected revision, risk, hashes, safe validation selection, and rollback conflicts.
+
+`VoiceActionExecutor` has no API-client, filesystem, subprocess, `PatchEngine`, or `SafeProcessRunner` dependency. It can call only the same application functions used by buttons. Requests record `action_source: VOICE` separately from `input_type`, so a voice instruction over camera OCR does not relabel the error content.
+
+PocketPilot does not request persisted recognition recordings, retain raw audio, or send audio to the laptop. The selected Android recognition service receives microphone audio and may use its network according to device/service settings. Offline preference or reported on-device support is not documented as verified until a real network-off test passes. Starting recognition stops PocketPilot TTS first, preventing simultaneous self-listening.

@@ -34,9 +34,11 @@ const WARNING_COPY: Readonly<Record<OcrWarningCode, string>> = {
 interface VisionScannerProps {
   readonly onAnalyze: (text: string, source: VisionInputSource) => Promise<boolean>;
   readonly onClose: () => void;
+  readonly onReviewText: (text: string, source: VisionInputSource) => void;
+  readonly onSpeak: () => void;
 }
 
-export function VisionScanner({ onAnalyze, onClose }: VisionScannerProps) {
+export function VisionScanner({ onAnalyze, onClose, onReviewText, onSpeak }: VisionScannerProps) {
   const [state, dispatch] = useReducer(visionReducer, initialVisionState);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [cameraReady, setCameraReady] = useState(false);
@@ -51,8 +53,11 @@ export function VisionScanner({ onAnalyze, onClose }: VisionScannerProps) {
   files.current = { captured: state.captured, prepared: state.prepared };
   useEffect(() => () => cleanupVisionFiles(files.current.captured, files.current.prepared), []);
   useEffect(() => {
-    if (state.result !== null) setDraft(state.result.normalized_text);
-  }, [state.result]);
+    if (state.result !== null) {
+      setDraft(state.result.normalized_text);
+      onReviewText(state.result.normalized_text, state.result.source);
+    }
+  }, [onReviewText, state.result]);
 
   async function openCamera() {
     setCameraReady(false);
@@ -168,10 +173,11 @@ export function VisionScanner({ onAnalyze, onClose }: VisionScannerProps) {
       <View style={styles.qualityRow}><Text style={[styles.quality, quality.level === 'GOOD' ? styles.good : quality.level === 'POOR' ? styles.bad : styles.warn]}>{quality.level} · {quality.score}/100</Text><Text style={styles.source}>{state.result.source} · {state.result.duration_ms}ms</Text></View>
       {quality.warnings.map((warning) => <Text key={warning} style={warning === 'POSSIBLE_SECRET' || warning === 'POSSIBLE_PROMPT_INJECTION' ? styles.dangerWarning : styles.warning}>⚠ {WARNING_COPY[warning]}</Text>)}
       <Text style={styles.label}>EDITABLE TEXT SENT TO LAPTOP</Text>
-      <TextInput accessibilityLabel="Editable OCR text" autoCapitalize="none" autoCorrect={false} multiline onChangeText={setDraft} style={styles.textArea} textAlignVertical="top" value={draft} />
+      <TextInput accessibilityLabel="Editable OCR text" autoCapitalize="none" autoCorrect={false} multiline onChangeText={(text) => { setDraft(text); onReviewText(text, state.result!.source); }} style={styles.textArea} textAlignVertical="top" value={draft} />
       <Pressable accessibilityLabel="Toggle raw OCR text" onPress={() => setShowRaw(!showRaw)}><Text style={styles.rawLink}>{showRaw ? 'HIDE RAW OCR' : 'COMPARE RAW OCR'}</Text></Pressable>
       {showRaw && <Text selectable style={styles.rawText}>{state.result.raw_text || '(empty)'}</Text>}
       <PrivacyNote />
+      <SmallAction label="SPEAK COMMAND" onPress={onSpeak} />
       <PrimaryAction disabled={sending || !draft.trim()} label={sending ? 'SENDING CONFIRMED TEXT…' : 'ANALYZE ERROR'} onPress={() => void analyze()} />
       <SmallAction label="DISCARD & RETAKE" onPress={discardAndRetake} />
     </VisionPage>;

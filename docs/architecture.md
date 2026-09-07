@@ -226,3 +226,19 @@ Preprocessing creates an app-owned cache derivative for both sources and can cen
 Every recognition outcome reaches editable review, including high-quality text. Poor/empty output cannot advance without the user adding visible text. Secret-like and prompt-injection-like strings produce prominent warnings but remain editable data, never instructions. The existing analysis request receives only the confirmed text and `CAMERA`/`GALLERY` provenance. Image bytes, local URIs, OCR blocks, and raw OCR are absent from the HTTP contract and server persistence.
 
 Closing, retaking, or completing a successful handoff performs best-effort deletion of camera and processed cache files. External gallery originals are never deletion targets. A failed/offline handoff keeps the editable draft and local files available for retry.
+
+## Milestone 7 voice command boundary
+
+```text
+push-to-talk → Android recognizer → transcript → deterministic closed intent
+  → current-state validator → optional two-step confirmation
+  → existing mobile application callback → authenticated API
+
+structured result → bounded response formatter → Android TTS
+```
+
+Recognition, resolution, validation, action execution, and TTS are separate interfaces. `VoiceActionExecutor` receives only existing application callbacks and cannot import the API client, filesystem, subprocess, `PatchEngine`, or `SafeProcessRunner`. Common English commands use deterministic phrase rules; no unrestricted model fallback is enabled.
+
+Read-only explanation intents format the already validated analysis, patch, session, and test data. Patch generation uses the same generation callback as the button. Approval and rollback require a second confirmation and then submit the current patch ID plus optimistic revision through the same endpoint as the button. Backend hash, revision, risk, test-command, and rollback-conflict checks remain authoritative.
+
+Voice-triggered requests carry `action_source: VOICE` independently from analysis `input_type`. This preserves the distinction between speaking an action and dictating error content. Microphone audio is not persisted by PocketPilot; Android’s selected recognition service receives it and may use a network unless on-device behavior is physically verified.

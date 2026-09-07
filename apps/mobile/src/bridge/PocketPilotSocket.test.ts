@@ -83,4 +83,26 @@ describe('PocketPilotSocket', () => {
     expect(status).toHaveBeenLastCalledWith('UNAUTHORIZED');
     expect(schedule).not.toHaveBeenCalled();
   });
+
+  it('starts the new session at its own cursor and ignores the old socket', () => {
+    const sockets: FakeSocket[] = [];
+    const urls: string[] = [];
+    const messages: SessionWebSocketMessage[] = [];
+    const socket = new PocketPilotSocket({
+      baseUrl: 'http://laptop:8000', token: 'token',
+      callbacks: { onMessage: (message) => messages.push(message), onStatus: vi.fn() },
+      socketFactory: (url) => { urls.push(url); const fake = new FakeSocket(); sockets.push(fake); return fake; },
+    });
+    socket.connect('old-session', 18);
+    socket.connect(session.id, 2);
+    expect(urls[1]).toContain('after_sequence=2');
+    sockets[0]?.message({ type: 'event', event: { ...event(30), session_id: 'old-session' } });
+    sockets[1]?.message({ type: 'event', event: event(4) });
+    expect(messages).toHaveLength(1);
+    expect(socket.getLastSequence()).toBe(4);
+    socket.connect(session.id, 2);
+    expect(urls[2]).toContain('after_sequence=4');
+    socket.connect('third-session');
+    expect(urls[3]).toContain('after_sequence=0');
+  });
 });

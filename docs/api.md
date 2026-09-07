@@ -118,7 +118,8 @@ Content-Type: application/json
   "file_hint":"UserService.java",
   "language_hint":"Java",
   "framework_hint":null,
-  "expected_revision":1
+  "expected_revision":1,
+  "action_source":"MOBILE_UI"
 }
 ```
 
@@ -128,11 +129,13 @@ Fetch the durable result with `GET /api/v1/sessions/{session_id}/analysis`. Type
 
 ## Patch lifecycle
 
+`action_source` is optional and defaults to `MOBILE_UI`. A voice-triggered action sets it to `VOICE`; this does not change `input_type`, which records where the error content came from. Unknown values are rejected by the strict request schema.
+
 Generate only from `ROOT_CAUSE_FOUND` using the current revision:
 
 ```http
 POST /api/v1/sessions/{session_id}/patches/generate
-{"expected_revision":3}
+{"expected_revision":3,"action_source":"VOICE"}
 ```
 
 A successful response reaches `AWAITING_APPROVAL` and contains the complete unified diff and validation/risk result. Files are unchanged. Fetch the durable public view with `GET /api/v1/sessions/{session_id}/patches/current`.
@@ -141,14 +144,14 @@ Approve or reject the exact proposal:
 
 ```http
 POST /api/v1/sessions/{session_id}/patches/{patch_id}/approve
-{"expected_revision":5}
+{"expected_revision":5,"action_source":"VOICE"}
 ```
 
 ```http
 POST /api/v1/sessions/{session_id}/patches/{patch_id}/reject
-{"expected_revision":5}
+{"expected_revision":5,"action_source":"MOBILE_UI"}
 ```
 
 Approval synchronously revalidates base hashes, applies atomically, chooses an existing safe command, and returns `SUCCESS` or `FAILED`. Rejection transitions to `FAILED` without writes. Wrong patch IDs, revisions, concurrent operations, stale files, and rollback conflicts return 409. Invalid provider output/diffs return 422; provider availability errors return 503/504.
 
-Rollback a completed attempt with `POST /api/v1/sessions/{session_id}/patches/{patch_id}/rollback` and the current revision. Rollback succeeds only when every current file hash equals the stored patched hash.
+Rollback a completed attempt with `POST /api/v1/sessions/{session_id}/patches/{patch_id}/rollback`, the current revision, and optional `action_source`. Rollback succeeds only when every current file hash equals the stored patched hash. Voice provenance changes audit summaries only; it grants no additional permission or transition.

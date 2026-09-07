@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 
 import type {
+  ActionSource,
   AnalysisRecord,
   DebugSession,
   ErrorInputType,
@@ -33,6 +34,16 @@ import { clearConnection, loadConnection, saveConnection, type StoredConnection 
 import { LocalWebSocketBridge, type DeviceBridge } from './src/bridge/DeviceBridge';
 import { initialWorkflowState, pipelineStatus, workflowReducer, type WorkflowState } from './src/state/workflow';
 import { VisionScanner } from './src/vision/VisionScanner';
+import { VoiceActionExecutor } from './src/voice/actionExecutor';
+import type { SpeechCapability, VoiceExecutionResult, VoiceIntent, VoiceSessionContext } from './src/voice/contracts';
+import {
+  formatFixResponse,
+  formatLocationResponse,
+  formatRootCauseResponse,
+  formatSessionResponse,
+  formatTestResponse,
+} from './src/voice/responseFormatter';
+import { VoiceSheet } from './src/voice/VoiceSheet';
 
 type Tab = 'HOME' | 'DEBUG' | 'SESSIONS' | 'SETTINGS';
 const DEMO_ERROR = `Traceback (most recent call last):
@@ -67,9 +78,24 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
   const [error, setError] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [visionOpen, setVisionOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [speechCapability, setSpeechCapability] = useState<SpeechCapability | null>(null);
+  const [ttsAvailable, setTtsAvailable] = useState(false);
   const bridgeRef = useRef<DeviceBridge | null>(null);
+  const authResetting = useRef(false);
   const client = useMemo(() => new ApiClient({ baseUrl: connection.serverAddress, token: connection.token }), [connection]);
   const fade = useRef(new Animated.Value(0)).current;
+
+  const expireConnection = useCallback(() => {
+    if (authResetting.current) return;
+    authResetting.current = true;
+    bridgeRef.current?.disconnect();
+    void clearConnection().finally(onDisconnect);
+  }, [onDisconnect]);
+
+  const reportRequestError = useCallback((requestError: unknown) => {
+    handleError(requestError, setError, expireConnection);
+  }, [expireConnection]);
 
   const reconcile = useCallback(async (sessionId: string) => {
     try {
@@ -82,15 +108,15 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
         void getPatch(client, sessionId).then((patch) => dispatch({ type: 'PATCH', patch })).catch(() => undefined);
       }
     } catch (requestError) {
-      handleError(requestError, setError);
+      reportRequestError(requestError);
     }
-  }, [client]);
+  }, [client, reportRequestError]);
 
   useEffect(() => {
     const bridge = new LocalWebSocketBridge(connection.serverAddress, connection.token, {
       onStatus: (status) => {
         dispatch({ type: 'CONNECTION', status });
-        if (status === 'UNAUTHORIZED') setError('Device access expired or was revoked. Pair this phone again.');
+        if (status === 'UNAUTHORIZED') expireConnection();
       },
       onMessage: (message) => {
         if (message.type === 'snapshot') {
@@ -106,7 +132,7 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     });
     bridgeRef.current = bridge;
     return () => { bridge.disconnect(); bridgeRef.current = null; };
-  }, [connection, reconcile]);
+  }, [connection, expireConnection, reconcile]);
 
   const refreshDashboard = useCallback(async () => {
     try {
@@ -119,9 +145,9 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
       setHistory(sessions.sessions);
       setError(null);
     } catch (requestError) {
-      handleError(requestError, setError);
+      reportRequestError(requestError);
     }
-  }, [client]);
+  }, [client, reportRequestError]);
 
   useEffect(() => { void refreshDashboard(); }, [refreshDashboard]);
   useEffect(() => {
@@ -139,7 +165,7 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     Animated.timing(fade, { toValue: 1, duration: 260, useNativeDriver: true }).start();
   }, [fade, state.session?.state]);
 
-  async function startAnalysis(text = errorText, source: ErrorInputType = inputSource): Promise<boolean> {
+  async function startAnalysis(text = errorText, source: ErrorInputType = inputSource, actionSource: ActionSource = 'MOBILE_UI'): Promise<boolean> {
     if (!text.trim()) { setError('Paste or scan an error first.'); return false; }
     if (state.workspace === null) { setError('Select an active workspace on the PocketPilot laptop dashboard. Your confirmed OCR text is still on this screen.'); return false; }
     setBusy('analyze'); setError(null); setTab('DEBUG');
@@ -149,14 +175,14 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
       dispatch({ type: 'SESSION', session: captured.session });
       dispatch({ type: 'EVENT', event: captured.event });
       bridgeRef.current?.connect(captured.session.id, captured.event.sequence);
-      const result = await analyzeText(client, captured.session, text.trim(), languageHint, source);
+      const result = await analyzeText(client, captured.session, text.trim(), languageHint, source, actionSource);
       dispatch({ type: 'SESSION', session: result.session });
       dispatch({ type: 'ANALYSIS', analysis: result.analysis });
       setErrorText(text.trim());
       setInputSource(source);
       await refreshHistory();
       return true;
-    } catch (requestError) { handleError(requestError, setError); return false; }
+    } catch (requestError) { reportRequestError(requestError); return false; }
     finally { setBusy(null); }
   }
 
@@ -164,43 +190,54 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     return startAnalysis(text, source);
   }
 
-  async function requestPatch() {
-    if (state.session === null) return;
+  const reviewVisionText = useCallback((text: string, source: VisionInputSource) => {
+    setErrorText(text);
+    setInputSource(source);
+  }, []);
+
+  async function requestPatch(actionSource: ActionSource = 'MOBILE_UI'): Promise<boolean> {
+    if (state.session === null) return false;
     setBusy('patch'); setError(null);
     try {
-      const result = await generatePatch(client, state.session);
+      const result = await generatePatch(client, state.session, actionSource);
       dispatch({ type: 'SESSION', session: result.session });
       dispatch({ type: 'PATCH', patch: result.workflow });
-    } catch (requestError) { handleError(requestError, setError); }
+      return true;
+    } catch (requestError) { reportRequestError(requestError); return false; }
     finally { setBusy(null); }
   }
 
-  async function retryAnalysis() {
-    if (state.session === null || state.session.state !== 'FAILED' || state.session.retry_count >= 2) return;
-    if (!errorText.trim()) { setError('Paste the original error again before retrying this historical session.'); return; }
+  async function retryAnalysis(actionSource: ActionSource = 'MOBILE_UI'): Promise<boolean> {
+    if (state.session === null || state.session.state !== 'FAILED' || state.session.retry_count >= 2) return false;
+    if (!errorText.trim()) { setError('Paste the original error again before retrying this historical session.'); return false; }
     setBusy('retry'); setError(null);
     try {
-      const result = await analyzeText(client, state.session, errorText.trim(), languageHint, inputSource);
+      const result = await analyzeText(client, state.session, errorText.trim(), languageHint, inputSource, actionSource);
       dispatch({ type: 'SNAPSHOT', session: result.session, events: [], patch: null });
       dispatch({ type: 'ANALYSIS', analysis: result.analysis });
       await refreshHistory();
-    } catch (requestError) { handleError(requestError, setError); }
+      return true;
+    } catch (requestError) { reportRequestError(requestError); return false; }
     finally { setBusy(null); }
   }
 
-  async function patchAction(action: 'approve' | 'reject' | 'rollback') {
-    if (state.session === null || state.patch === null) return;
+  async function patchAction(action: 'approve' | 'reject' | 'rollback', actionSource: ActionSource = 'MOBILE_UI'): Promise<boolean> {
+    if (state.session === null || state.patch === null) return false;
     setBusy(action); setError(null);
     try {
-      const result = await decidePatch(client, state.session, state.patch, action);
+      const result = await decidePatch(client, state.session, state.patch, action, actionSource);
       dispatch({ type: 'SESSION', session: result.session });
       dispatch({ type: 'PATCH', patch: result.workflow });
       await refreshHistory();
+      return true;
     } catch (requestError) {
-      if (action === 'rollback') {
+      if (requestError instanceof ApiError && requestError.status === 401) {
+        reportRequestError(requestError);
+      } else if (action === 'rollback') {
         const detail = requestError instanceof Error ? requestError.message : 'A newer file change prevents rollback.';
         setError(`ROLLBACK BLOCKED — ${detail}`);
-      } else handleError(requestError, setError);
+      } else reportRequestError(requestError);
+      return false;
     }
     finally { setBusy(null); }
   }
@@ -224,7 +261,7 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
       dispatch({ type: 'SNAPSHOT', session, events: events.events });
       bridgeRef.current?.connect(session.id, session.last_event_sequence);
       await reconcile(session.id);
-    } catch (requestError) { handleError(requestError, setError); }
+    } catch (requestError) { reportRequestError(requestError); }
     finally { setBusy(null); }
   }
 
@@ -234,6 +271,84 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     onDisconnect();
   }
 
+  const voiceContext: VoiceSessionContext = {
+    session_state: state.session?.state ?? null,
+    patch_status: state.patch?.status ?? null,
+    has_error_text: errorText.trim().length > 0,
+    has_analysis: state.analysis !== null,
+    has_patch: state.patch !== null,
+    retry_count: state.session?.retry_count ?? 0,
+  };
+  const voiceResponseData = { analysis: state.analysis, patch: state.patch, session: state.session };
+
+  async function executeVoiceAction(intent: VoiceIntent): Promise<VoiceExecutionResult> {
+    const executor = new VoiceActionExecutor({
+      analyzeError: async () => {
+        const success = await startAnalysis(errorText, inputSource, 'VOICE');
+        if (success) { setTab('DEBUG'); setVisionOpen(false); setVoiceOpen(false); }
+        return success
+          ? { success: true, message: 'Analysis completed.', spoken_response: 'Root cause found. The result is ready on screen.' }
+          : { success: false, message: 'Analysis could not complete.', spoken_response: null };
+      },
+      generatePatch: async () => {
+        const success = await requestPatch('VOICE');
+        if (success) { setTab('DEBUG'); setVoiceOpen(false); }
+        return success
+          ? { success: true, message: 'The fix is ready for review.', spoken_response: 'The generated fix is ready. Review the patch before approval.' }
+          : { success: false, message: 'A fix could not be generated.', spoken_response: null };
+      },
+      approvePatch: async () => {
+        const success = await patchAction('approve', 'VOICE');
+        if (success) { setTab('DEBUG'); setVoiceOpen(false); }
+        return success
+          ? { success: true, message: 'The approved fix and project validation completed.', spoken_response: 'The fix was applied through the approved workflow. Check the verified test result on screen.' }
+          : { success: false, message: 'The fix was not applied. Refresh the session before trying again.', spoken_response: null };
+      },
+      rejectPatch: async () => {
+        const success = await patchAction('reject', 'VOICE');
+        return success
+          ? { success: true, message: 'The patch was rejected.', spoken_response: 'The patch was rejected. No files were changed.' }
+          : { success: false, message: 'The patch could not be rejected.', spoken_response: null };
+      },
+      rollback: async () => {
+        const success = await patchAction('rollback', 'VOICE');
+        if (success) { setTab('DEBUG'); setVoiceOpen(false); }
+        return success
+          ? { success: true, message: 'Rollback completed.', spoken_response: 'The rollback is complete. The original files were restored.' }
+          : { success: false, message: 'Rollback was blocked. Review the conflict on screen.', spoken_response: null };
+      },
+      tryAnotherFix: async () => {
+        const success = await retryAnalysis('VOICE');
+        return success
+          ? { success: true, message: 'A new analysis is ready.', spoken_response: 'PocketPilot completed another safe analysis attempt.' }
+          : { success: false, message: 'Another fix is not available.', spoken_response: null };
+      },
+      scanError: () => {
+        setVoiceOpen(false); setVisionOpen(true);
+        return { success: true, message: 'Camera opened. Capture remains manual.', spoken_response: null };
+      },
+      explainRootCause: () => ({ success: true, message: 'Root-cause explanation ready.', spoken_response: formatRootCauseResponse(voiceResponseData) }),
+      explainFix: () => ({ success: true, message: 'Fix explanation ready.', spoken_response: formatFixResponse(voiceResponseData) }),
+      showLocation: () => ({ success: true, message: 'Problem location ready.', spoken_response: formatLocationResponse(voiceResponseData) }),
+      showTestResult: () => ({ success: true, message: 'Validation result ready.', spoken_response: formatTestResponse(voiceResponseData) }),
+      showSessionStatus: () => ({ success: true, message: 'Session status ready.', spoken_response: formatSessionResponse(voiceResponseData) }),
+      showPatch: () => {
+        setTab('DEBUG'); setVoiceOpen(false);
+        return { success: true, message: 'Showing the reviewed patch.', spoken_response: 'The current patch is open on screen.' };
+      },
+      showError: () => {
+        setTab('DEBUG'); setVoiceOpen(false);
+        return { success: true, message: 'Showing the captured error.', spoken_response: 'The captured error is open on screen.' };
+      },
+    });
+    return executor.execute(intent);
+  }
+
+  const recordVoiceCapability = useCallback((capability: SpeechCapability, speechAvailable: boolean) => {
+    setSpeechCapability(capability);
+    setTtsAvailable(speechAvailable);
+  }, []);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
@@ -241,8 +356,8 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
         <Header connection={state.connection} />
         {error !== null && <ErrorBanner message={error} onRetry={() => void refreshDashboard()} />}
         <Animated.View style={[styles.content, { opacity: fade }]}>
-          {visionOpen ? <VisionScanner onAnalyze={analyzeVisionText} onClose={() => setVisionOpen(false)} /> : <>
-          {tab === 'HOME' && <HomeScreen state={state} provider={provider} onPaste={() => { setInputSource('TEXT'); setTab('DEBUG'); }} onScan={() => setVisionOpen(true)} currentSession={state.session} />}
+          {visionOpen ? <VisionScanner onAnalyze={analyzeVisionText} onClose={() => setVisionOpen(false)} onReviewText={reviewVisionText} onSpeak={() => setVoiceOpen(true)} /> : <>
+          {tab === 'HOME' && <HomeScreen state={state} provider={provider} onPaste={() => { setInputSource('TEXT'); setTab('DEBUG'); }} onScan={() => setVisionOpen(true)} onSpeak={() => setVoiceOpen(true)} currentSession={state.session} />}
           {tab === 'DEBUG' && (
             <DebugScreen
               analysis={state.analysis}
@@ -259,6 +374,7 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
               onRetry={() => void retryAnalysis()}
               onReset={() => { bridgeRef.current?.disconnect(); dispatch({ type: 'RESET' }); setInputSource('TEXT'); void refreshDashboard(); }}
               onRollback={confirmRollback}
+              onSpeak={() => setVoiceOpen(true)}
               onStart={() => void startAnalysis()}
               patch={state.patch}
               session={state.session}
@@ -267,9 +383,10 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
             />
           )}
           {tab === 'SESSIONS' && <SessionsScreen sessions={history} busy={busy === 'history'} onOpen={(id) => void openSession(id)} onRefresh={() => void refreshHistory()} />}
-          {tab === 'SETTINGS' && <SettingsScreen connection={connection} demoMode={demoMode} onDemoMode={setDemoMode} onDisconnect={() => void disconnectDevice()} />}
+          {tab === 'SETTINGS' && <SettingsScreen connection={connection} demoMode={demoMode} onDemoMode={setDemoMode} onDisconnect={() => void disconnectDevice()} speechCapability={speechCapability} ttsAvailable={ttsAvailable} />}
           </>}
         </Animated.View>
+        <VoiceSheet context={voiceContext} demoMode={demoMode} onCapability={recordVoiceCapability} onClose={() => setVoiceOpen(false)} onExecute={executeVoiceAction} open={voiceOpen} responseData={voiceResponseData} />
         {!visionOpen && <TabBar active={tab} onSelect={setTab} />}
       </View>
     </SafeAreaView>
@@ -319,7 +436,7 @@ function PairingScreen({ onPaired }: { onPaired: (connection: StoredConnection) 
   );
 }
 
-function HomeScreen({ state, provider, onPaste, onScan, currentSession }: { state: WorkflowState; provider: ProviderHealth | null; onPaste: () => void; onScan: () => void; currentSession: DebugSession | null }) {
+function HomeScreen({ state, provider, onPaste, onScan, onSpeak, currentSession }: { state: WorkflowState; provider: ProviderHealth | null; onPaste: () => void; onScan: () => void; onSpeak: () => void; currentSession: DebugSession | null }) {
   return (
     <ScrollView contentContainerStyle={styles.scrollPage}>
       <Text style={styles.homeTitle}>See it. Say it.{`\n`}Fix it.</Text>
@@ -337,8 +454,8 @@ function HomeScreen({ state, provider, onPaste, onScan, currentSession }: { stat
       </Card>
       <View style={styles.actionGrid}>
         <Pressable accessibilityLabel="Scan an error" onPress={onScan} style={styles.actionCard}><Text style={styles.actionIcon}>▣</Text><Text style={styles.actionTitle}>SCAN ERROR</Text><Text style={styles.actionSubtitle}>Camera or screenshot · on-device OCR</Text></Pressable>
+        <Pressable accessibilityLabel="Speak a PocketPilot command" onPress={onSpeak} style={[styles.actionCard, styles.voiceAction]}><Text style={styles.actionIcon}>●</Text><Text style={styles.actionTitle}>SPEAK COMMAND</Text><Text style={styles.actionSubtitle}>Push to talk · safe actions only</Text></Pressable>
         <Pressable accessibilityLabel="Paste an error" onPress={onPaste} style={styles.actionCard}><Text style={styles.actionIcon}>⌘</Text><Text style={styles.actionTitle}>PASTE ERROR</Text><Text style={styles.actionSubtitle}>Start a real debug session</Text></Pressable>
-        <DisabledAction title="SPEAK COMMAND" subtitle="Coming later" />
       </View>
       {currentSession !== null && <Card><Eyebrow>CURRENT SESSION</Eyebrow><Text style={styles.cardTitle}>{currentSession.title}</Text><StateBadge state={currentSession.state} /></Card>}
     </ScrollView>
@@ -349,7 +466,7 @@ function DebugScreen(props: {
   analysis: AnalysisRecord | null; busy: string | null; demoMode: boolean; errorText: string; languageHint: string;
   onApprove: () => void; onChangeError: (value: string) => void; onChangeLanguage: (value: string) => void;
   onGenerate: () => void; onLoadDemo: () => void; onReject: () => void; onReset: () => void; onRollback: () => void;
-  onRetry: () => void; onStart: () => void; patch: PatchWorkflowView | null; session: DebugSession | null;
+  onRetry: () => void; onSpeak: () => void; onStart: () => void; patch: PatchWorkflowView | null; session: DebugSession | null;
   steps: ReadonlyArray<{ label: string; complete: boolean; active: boolean }>; workspaceReady: boolean;
 }) {
   if (props.session === null) {
@@ -366,9 +483,10 @@ function DebugScreen(props: {
   }
   return (
     <ScrollView contentContainerStyle={styles.scrollPage}>
-      <View style={styles.titleRow}><View><Eyebrow>LIVE DEBUG SESSION</Eyebrow><Text style={styles.screenTitle}>{props.session.title}</Text></View><StateBadge state={props.session.state} /></View>
+      <View style={styles.titleRow}><View style={styles.titleCopy}><Eyebrow>LIVE DEBUG SESSION</Eyebrow><Text style={styles.screenTitle}>{props.session.title}</Text></View><View style={styles.sessionActions}><Pressable accessibilityLabel="Speak a contextual command" accessibilityRole="button" onPress={props.onSpeak} style={styles.voiceMini}><Text style={styles.voiceMiniText}>●</Text></Pressable><StateBadge state={props.session.state} /></View></View>
       <Pipeline steps={props.steps} />
       {props.analysis !== null && <RootCause analysis={props.analysis} busy={props.busy !== null} canGenerate={props.session.state === 'ROOT_CAUSE_FOUND'} onGenerate={props.onGenerate} />}
+      {props.session.state === 'ROOT_CAUSE_FOUND' && props.patch === null && props.busy === null && <SecondaryButton label="REVIEW ERROR TEXT" onPress={props.onReset} />}
       {props.patch !== null && <PatchPanel busy={props.busy} onApprove={props.onApprove} onReject={props.onReject} onRetry={props.onRetry} onRollback={props.onRollback} patch={props.patch} session={props.session} />}
       {['SUCCESS', 'ROLLED_BACK'].includes(props.session.state) && <SecondaryButton label="DONE" onPress={props.onReset} />}
     </ScrollView>
@@ -407,8 +525,8 @@ function SessionsScreen({ sessions, busy, onOpen, onRefresh }: { sessions: Reado
   return <ScrollView contentContainerStyle={styles.scrollPage}><View style={styles.titleRow}><View><Eyebrow>SESSION HISTORY</Eyebrow><Text style={styles.screenTitle}>Recent debugging</Text></View><Pressable accessibilityLabel="Refresh sessions" onPress={onRefresh}><Text style={styles.link}>REFRESH</Text></Pressable></View>{busy && <ActivityIndicator color="#C8FF3D" />}{sessions.map((session) => <Pressable accessibilityLabel={`Open ${session.title}`} key={session.id} onPress={() => onOpen(session.id)} style={styles.sessionCard}><StateBadge state={session.state} /><View style={styles.sessionCopy}><Text numberOfLines={1} style={styles.sessionTitle}>{session.title}</Text><Text style={styles.sessionTime}>{relativeTime(session.updated_at)}</Text></View><Text style={styles.chevron}>›</Text></Pressable>)}{sessions.length === 0 && <Text style={styles.emptyText}>No debugging sessions yet.</Text>}</ScrollView>;
 }
 
-function SettingsScreen({ connection, demoMode, onDemoMode, onDisconnect }: { connection: StoredConnection; demoMode: boolean; onDemoMode: (value: boolean) => void; onDisconnect: () => void }) {
-  return <ScrollView contentContainerStyle={styles.scrollPage}><Eyebrow>SETTINGS</Eyebrow><Text style={styles.screenTitle}>Device connection</Text><Card><Info label="LAPTOP ADDRESS" value={connection.serverAddress} /><Info label="DEVICE" value={connection.displayName} /><Info label="DEVICE ID" value={connection.deviceId} /><Text style={styles.securityCopy}>The token is stored in Android secure storage. Source code, secrets, and rollback snapshots remain on the laptop.</Text><SecondaryButton label="DISCONNECT PHONE" onPress={onDisconnect} /></Card><Pressable accessibilityLabel="Toggle demo mode" onPress={() => onDemoMode(!demoMode)} style={styles.settingRow}><View><Text style={styles.settingTitle}>Demo Mode</Text><Text style={styles.cardCopy}>Shows a Load Demo Error action. Backend results stay real.</Text></View><Text style={[styles.toggle, demoMode && styles.toggleOn]}>{demoMode ? 'ON' : 'OFF'}</Text></Pressable><Card><Eyebrow>VISION PRIVACY</Eyebrow><Text style={styles.cardTitle}>On-device OCR</Text><Text style={styles.cardCopy}>Camera and gallery images remain on the phone. Only text you inspect and confirm is sent to the paired laptop. Voice remains planned for a later milestone.</Text></Card></ScrollView>;
+function SettingsScreen({ connection, demoMode, onDemoMode, onDisconnect, speechCapability, ttsAvailable }: { connection: StoredConnection; demoMode: boolean; onDemoMode: (value: boolean) => void; onDisconnect: () => void; speechCapability: SpeechCapability | null; ttsAvailable: boolean }) {
+  return <ScrollView contentContainerStyle={styles.scrollPage}><Eyebrow>SETTINGS</Eyebrow><Text style={styles.screenTitle}>Device connection</Text><Card><Info label="LAPTOP ADDRESS" value={connection.serverAddress} /><Info label="DEVICE" value={connection.displayName} /><Info label="DEVICE ID" value={connection.deviceId} /><Text style={styles.securityCopy}>The token is stored in Android secure storage. Source code, secrets, and rollback snapshots remain on the laptop.</Text><SecondaryButton label="DISCONNECT PHONE" onPress={onDisconnect} /></Card><Pressable accessibilityLabel="Toggle demo mode" onPress={() => onDemoMode(!demoMode)} style={styles.settingRow}><View style={styles.titleCopy}><Text style={styles.settingTitle}>Demo Mode</Text><Text style={styles.cardCopy}>Shows guided camera and voice command suggestions. Backend results stay real.</Text></View><Text style={[styles.toggle, demoMode && styles.toggleOn]}>{demoMode ? 'ON' : 'OFF'}</Text></Pressable><Card><Eyebrow>VOICE</Eyebrow><Text style={styles.cardTitle}>Push-to-talk commands</Text><Info label="MICROPHONE / RECOGNITION" value={speechCapability === null ? 'Open Speak Command to detect' : speechCapability.available ? 'READY' : 'UNAVAILABLE'} /><Info label="LOCALE" value={speechCapability?.locale ?? 'English (India)'} /><Info label="RECOGNITION SERVICE" value={speechCapability?.provider_name ?? 'Not detected'} /><Info label="OFFLINE SPEECH" value={speechCapability?.offline_verified ? 'VERIFIED' : speechCapability?.offline_supported ? 'SUPPORTED · NOT VERIFIED' : 'NOT VERIFIED / UNAVAILABLE'} /><Info label="TEXT TO SPEECH" value={ttsAvailable ? 'READY' : 'NOT DETECTED'} /><Text style={styles.securityCopy}>PocketPilot does not retain microphone audio. The selected Android speech service may use a network unless on-device recognition is verified.</Text></Card><Card><Eyebrow>VISION PRIVACY</Eyebrow><Text style={styles.cardTitle}>On-device OCR</Text><Text style={styles.cardCopy}>Camera and gallery images remain on the phone. Only text you inspect and confirm is sent to the paired laptop.</Text></Card></ScrollView>;
 }
 
 function Header({ connection }: { connection: string }) { return <View style={styles.header}><Brand /><View style={styles.connectionPill}><StatusDot good={connection === 'CONNECTED'} /><Text style={styles.connectionText}>{connection}</Text></View></View>; }
@@ -425,12 +543,14 @@ function StatusDot({ good }: { good: boolean }) { return <View style={[styles.do
 function StatusCard({ label, value, good }: { label: string; value: string; good: boolean }) { return <View style={styles.statusCard}><Eyebrow>{label}</Eyebrow><View style={styles.statusRow}><StatusDot good={good} /><Text style={styles.statusLarge}>{value}</Text></View></View>; }
 function Info({ label, value }: { label: string; value: string }) { return <View style={styles.info}><Eyebrow>{label}</Eyebrow><Text style={styles.infoValue}>{value}</Text></View>; }
 function Metric({ label, value }: { label: string; value: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>; }
-function DisabledAction({ title, subtitle }: { title: string; subtitle: string }) { return <View accessibilityLabel={`${title}, ${subtitle}`} style={[styles.actionCard, styles.disabledAction]}><Text style={styles.actionIcon}>○</Text><Text style={styles.actionTitle}>{title}</Text><Text style={styles.actionSubtitle}>{subtitle}</Text></View>; }
-function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) { return <View style={styles.errorBanner}><View style={styles.errorCopy}><Text style={styles.errorTitle}>CONNECTION OR REQUEST ISSUE</Text><Text style={styles.errorMessage}>{message}</Text></View><Pressable accessibilityLabel="Try again" onPress={onRetry}><Text style={styles.retry}>TRY AGAIN</Text></Pressable></View>; }
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) { return <View style={styles.errorBanner}><View style={styles.errorCopy}><Text style={styles.errorTitle}>CONNECTION OR REQUEST ISSUE</Text><Text style={styles.errorMessage}>{message}</Text></View><Pressable accessibilityLabel="Try again" accessibilityRole="button" onPress={onRetry} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}><Text style={styles.retry}>TRY AGAIN</Text></Pressable></View>; }
 function Splash() { return <SafeAreaView style={styles.splash}><StatusBar style="light" /><Brand /><ActivityIndicator color="#C8FF3D" size="large" /></SafeAreaView>; }
 
-function handleError(error: unknown, setError: (message: string) => void): void {
-  if (error instanceof ApiError && error.status === 401) setError('Device session expired. Pair this phone again from the laptop dashboard.');
+function handleError(error: unknown, setError: (message: string) => void, onUnauthorized?: () => void): void {
+  if (error instanceof ApiError && error.status === 401) {
+    setError('Device session expired. Opening secure pairing…');
+    onUnauthorized?.();
+  }
   else setError(error instanceof Error ? error.message : 'PocketPilot could not complete the request.');
 }
 function conciseTitle(text: string): string { const first = text.split('\n').find((line) => line.trim())?.trim() ?? 'Mobile debug issue'; return first.slice(0, 80); }
@@ -441,11 +561,11 @@ const styles = StyleSheet.create({
   header: { minHeight: 68, paddingHorizontal: 20, borderBottomColor: '#202720', borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, brand: { flexDirection: 'row', alignItems: 'center', gap: 10 }, mark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#C8FF3D', alignItems: 'center', justifyContent: 'center' }, markText: { color: '#090D08', fontWeight: '900', fontSize: 18 }, brandName: { color: '#F4F7F1', fontSize: 12, letterSpacing: 1.5, fontWeight: '900' }, brandSub: { color: '#60695D', fontSize: 8, letterSpacing: 1.1, marginTop: 2 },
   connectionPill: { minHeight: 34, paddingHorizontal: 11, borderWidth: 1, borderColor: '#2A3327', borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 7 }, connectionText: { color: '#9BA596', fontSize: 9, fontWeight: '800' }, dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#596058' }, dotGood: { backgroundColor: '#C8FF3D' },
   pairingPage: { flexGrow: 1, padding: 24, backgroundColor: '#070A0F' }, pairingHero: { marginTop: 62, marginBottom: 32 }, heroTitle: { color: '#F4F7F1', fontSize: 47, lineHeight: 49, letterSpacing: -2.2, fontWeight: '800' }, heroCopy: { color: '#899287', fontSize: 15, lineHeight: 23, marginTop: 16 }, helper: { color: '#687166', fontSize: 12, lineHeight: 19, textAlign: 'center', margin: 20 },
-  scrollPage: { padding: 20, paddingBottom: 42, gap: 14 }, homeTitle: { color: '#F4F7F1', fontSize: 43, lineHeight: 46, letterSpacing: -2, fontWeight: '800', marginVertical: 20 }, screenTitle: { color: '#F4F7F1', fontSize: 29, lineHeight: 34, letterSpacing: -1, fontWeight: '800', marginTop: 7, marginBottom: 10 }, titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  scrollPage: { padding: 20, paddingBottom: 42, gap: 14 }, homeTitle: { color: '#F4F7F1', fontSize: 43, lineHeight: 46, letterSpacing: -2, fontWeight: '800', marginVertical: 20 }, screenTitle: { color: '#F4F7F1', fontSize: 29, lineHeight: 34, letterSpacing: -1, fontWeight: '800', marginTop: 7, marginBottom: 10 }, titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }, titleCopy: { flex: 1 }, sessionActions: { alignItems: 'flex-end', gap: 8 }, voiceMini: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#526636', backgroundColor: '#162010', alignItems: 'center', justifyContent: 'center' }, voiceMiniText: { color: '#C8FF3D', fontSize: 18 },
   card: { backgroundColor: '#0E140F', borderWidth: 1, borderColor: '#273025', borderRadius: 20, padding: 18, gap: 12 }, cardAccent: { borderColor: '#617D32', backgroundColor: '#10190D' }, statusCard: { minHeight: 82, borderRadius: 18, padding: 17, backgroundColor: '#11170F', borderWidth: 1, borderColor: '#2B3528' }, eyebrow: { color: '#778172', fontSize: 9, letterSpacing: 1.5, fontWeight: '800' }, sourceNote: { color: '#70806C', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginTop: 5 }, cardTitle: { color: '#EEF2EA', fontSize: 20, lineHeight: 25, fontWeight: '700' }, cardCopy: { color: '#869083', fontSize: 12, lineHeight: 18 }, rootCause: { color: '#BCC6B7', fontSize: 14, lineHeight: 22 }, statusRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }, statusText: { color: '#AAB4A4', fontSize: 10, fontWeight: '800', letterSpacing: 1 }, statusLarge: { color: '#E7ECE3', fontSize: 17, fontWeight: '800' },
   field: { minHeight: 52, borderWidth: 1, borderColor: '#30392D', borderRadius: 12, backgroundColor: '#080C09', color: '#E5EAE1', paddingHorizontal: 15, fontSize: 14 }, errorInput: { minHeight: 220, borderWidth: 1, borderColor: '#30392D', borderRadius: 14, backgroundColor: '#080C09', color: '#DCE3D8', padding: 16, fontSize: 13, lineHeight: 20, fontFamily: 'monospace' }, inlineError: { color: '#FF9A85', fontSize: 12, lineHeight: 18 },
   primaryButton: { minHeight: 54, borderRadius: 13, backgroundColor: '#C8FF3D', alignItems: 'center', justifyContent: 'center', marginTop: 2 }, primaryText: { color: '#0B1008', fontSize: 12, fontWeight: '900', letterSpacing: 1 }, secondaryButton: { minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: '#465043', alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: '#CCD4C8', fontSize: 11, fontWeight: '800', letterSpacing: 1 }, disabled: { opacity: 0.42 }, pressed: { transform: [{ scale: 0.99 }] },
-  actionGrid: { gap: 10 }, actionCard: { minHeight: 104, borderRadius: 17, borderWidth: 1, borderColor: '#30402A', backgroundColor: '#11180F', padding: 16, justifyContent: 'center' }, disabledAction: { opacity: 0.48, backgroundColor: '#0B0F0C' }, actionIcon: { color: '#C8FF3D', fontSize: 20, marginBottom: 7 }, actionTitle: { color: '#EEF2EA', fontSize: 12, letterSpacing: 1, fontWeight: '900' }, actionSubtitle: { color: '#727B6E', fontSize: 11, marginTop: 4 },
+  actionGrid: { gap: 10 }, actionCard: { minHeight: 104, borderRadius: 17, borderWidth: 1, borderColor: '#30402A', backgroundColor: '#11180F', padding: 16, justifyContent: 'center' }, voiceAction: { borderColor: '#637E35', backgroundColor: '#14200F' }, actionIcon: { color: '#C8FF3D', fontSize: 20, marginBottom: 7 }, actionTitle: { color: '#EEF2EA', fontSize: 12, letterSpacing: 1, fontWeight: '900' }, actionSubtitle: { color: '#727B6E', fontSize: 11, marginTop: 4 },
   pipelineRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#222A20' }, pipelineIcon: { color: '#586056', width: 26, fontSize: 15 }, pipelineLabel: { color: '#697266', fontSize: 12 }, brightText: { color: '#D3DACF' }, successText: { color: '#C8FF3D' }, activeText: { color: '#F0C96B' }, failureText: { color: '#FF8B75' },
   badge: { overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 8, fontSize: 8, fontWeight: '900', letterSpacing: .7 }, badgeGood: { backgroundColor: '#203118', color: '#C8FF3D' }, badgeWarn: { backgroundColor: '#352B15', color: '#F0C96B' }, badgeBad: { backgroundColor: '#351B17', color: '#FF8B75' },
   info: { gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#252D23' }, infoValue: { color: '#AEB8AA', fontSize: 12, lineHeight: 19 }, evidence: { borderRadius: 10, backgroundColor: '#080C09', padding: 12, gap: 6 }, codeText: { color: '#C8FF3D', fontSize: 11, fontFamily: 'monospace' }, evidenceText: { color: '#808A7C', fontSize: 11, lineHeight: 17 },
@@ -453,6 +573,6 @@ const styles = StyleSheet.create({
   diffCard: { borderWidth: 1, borderColor: '#2B3428', borderRadius: 12, overflow: 'hidden', backgroundColor: '#070A08' }, diffHeader: { minHeight: 44, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, diffCount: { color: '#A9C481', fontSize: 10 }, diffBody: { minWidth: 600, paddingVertical: 10 }, diffLine: { color: '#A6B0A1', fontSize: 10, lineHeight: 17, fontFamily: 'monospace', paddingHorizontal: 12 }, diffAdd: { color: '#C9EFB0', backgroundColor: '#182615' }, diffRemove: { color: '#F0A99E', backgroundColor: '#2A1714' }, approvalNote: { color: '#929B8E', fontSize: 11, lineHeight: 17 }, progressBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, backgroundColor: '#111A0E' }, heroStatus: { color: '#EEF2EA', fontSize: 27, fontWeight: '900', letterSpacing: -.5 }, warningText: { color: '#E4BF6A', fontSize: 12, lineHeight: 19 },
   sessionCard: { minHeight: 76, padding: 14, borderWidth: 1, borderColor: '#283126', borderRadius: 15, backgroundColor: '#0E130F', flexDirection: 'row', alignItems: 'center', gap: 12 }, sessionCopy: { flex: 1 }, sessionTitle: { color: '#E4E9E0', fontSize: 13, fontWeight: '700' }, sessionTime: { color: '#687166', fontSize: 10, marginTop: 5 }, chevron: { color: '#87917F', fontSize: 25 }, link: { color: '#C8FF3D', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, emptyText: { color: '#687166', textAlign: 'center', marginTop: 60 },
   settingRow: { padding: 18, borderWidth: 1, borderColor: '#283126', borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, settingTitle: { color: '#E8ECE4', fontSize: 15, fontWeight: '700' }, toggle: { color: '#7A8476', fontSize: 11, fontWeight: '900' }, toggleOn: { color: '#C8FF3D' }, securityCopy: { color: '#737D70', fontSize: 11, lineHeight: 18 },
-  errorBanner: { margin: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: '#6A372E', backgroundColor: '#251512', flexDirection: 'row', alignItems: 'center', gap: 10 }, errorCopy: { flex: 1 }, errorTitle: { color: '#FF8B75', fontSize: 8, fontWeight: '900', letterSpacing: 1 }, errorMessage: { color: '#D5A89F', fontSize: 10, lineHeight: 15, marginTop: 4 }, retry: { color: '#F0C96B', fontSize: 9, fontWeight: '900' },
+  errorBanner: { margin: 12, padding: 13, paddingRight: 80, borderRadius: 12, borderWidth: 1, borderColor: '#6A372E', backgroundColor: '#251512', gap: 10 }, errorCopy: { alignSelf: 'stretch' }, errorTitle: { color: '#FF8B75', fontSize: 8, fontWeight: '900', letterSpacing: 1 }, errorMessage: { color: '#D5A89F', fontSize: 10, lineHeight: 15, marginTop: 4 }, retry: { color: '#F0C96B', fontSize: 9, fontWeight: '900' },
   tabBar: { minHeight: 72, paddingBottom: 5, borderTopWidth: 1, borderTopColor: '#202720', backgroundColor: '#090D0A', flexDirection: 'row' }, tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 }, tabIcon: { color: '#596258', fontSize: 17 }, tabLabel: { color: '#596258', fontSize: 8, fontWeight: '800', letterSpacing: .8 }, tabActive: { color: '#C8FF3D' },
 });

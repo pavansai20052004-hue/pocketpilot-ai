@@ -234,6 +234,7 @@ export interface CommandRun {
 }
 
 export type ErrorInputType = 'TEXT' | 'CAMERA' | 'GALLERY' | 'VOICE' | 'CLIPBOARD';
+export type ActionSource = 'DESKTOP_UI' | 'MOBILE_UI' | 'VOICE';
 export type VisionInputSource = 'CAMERA' | 'GALLERY';
 export type OcrQualityLevel = 'GOOD' | 'REVIEW' | 'POOR';
 export type OcrWarningCode =
@@ -312,7 +313,7 @@ export interface AnalysisRecord {
   readonly created_at: string;
 }
 export interface AnalysisExecutionResponse { readonly session: DebugSession; readonly analysis: AnalysisRecord; }
-export interface AnalyzeSessionRequest { readonly input_type: ErrorInputType; readonly raw_text: string; readonly file_hint?: string | null; readonly language_hint?: string | null; readonly expected_revision: number; }
+export interface AnalyzeSessionRequest { readonly input_type: ErrorInputType; readonly raw_text: string; readonly file_hint?: string | null; readonly language_hint?: string | null; readonly expected_revision: number; readonly action_source?: ActionSource; }
 export interface ProviderHealth { readonly provider: string; readonly model: string; readonly status: AnalysisStatus | null; readonly available: boolean; readonly model_available: boolean; readonly latency_ms: number; readonly detail: string; }
 
 export type PatchRisk = 'LOW' | 'MEDIUM' | 'HIGH' | 'BLOCKED';
