@@ -18,6 +18,7 @@ import type {
   ActionSource,
   AnalysisRecord,
   DebugSession,
+  DemoProject,
   ErrorInputType,
   PatchWorkflowView,
   ProviderHealth,
@@ -27,6 +28,7 @@ import type {
 import { analyzeText, getAnalysis } from './src/api/analysis';
 import { ApiClient, ApiError, normalizeBaseUrl } from './src/api/client';
 import { pairDevice } from './src/api/devices';
+import { listDemos, resetDemo, selectDemo } from './src/api/demos';
 import { decidePatch, generatePatch, getPatch } from './src/api/patches';
 import { captureSession, createSession, getEvents, getSession, listSessions } from './src/api/sessions';
 import { getProviderHealth, getWorkspace } from './src/api/workspaces';
@@ -47,11 +49,9 @@ import { VoiceSheet } from './src/voice/VoiceSheet';
 
 type Tab = 'HOME' | 'DEBUG' | 'SESSIONS' | 'SETTINGS';
 const DEMO_ERROR = `Traceback (most recent call last):
-  File "tests/test_user_service.py", line 5, in test_missing_user
-    assert get_user_name({}) == "Unknown"
-  File "user_service.py", line 2, in get_user_name
-    return users[user_id]["name"]
-KeyError: 42`;
+  File "user_service.py", line 5, in get_user_name
+    return user["name"]
+TypeError: 'NoneType' object is not subscriptable`;
 
 export default function App() {
   const [stored, setStored] = useState<StoredConnection | null>(null);
@@ -77,6 +77,8 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
+  const [demoProjects, setDemoProjects] = useState<ReadonlyArray<DemoProject>>([]);
+  const [activeDemoId, setActiveDemoId] = useState<string | null>(null);
   const [visionOpen, setVisionOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [speechCapability, setSpeechCapability] = useState<SpeechCapability | null>(null);
@@ -150,6 +152,13 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
   }, [client, reportRequestError]);
 
   useEffect(() => { void refreshDashboard(); }, [refreshDashboard]);
+  useEffect(() => {
+    void listDemos(client).then((result) => setDemoProjects(result.demos)).catch(reportRequestError);
+  }, [client, reportRequestError]);
+  useEffect(() => {
+    const active = demoProjects.find((demo) => demoDirectoryName(demo.id) === state.workspace?.name);
+    setActiveDemoId(active?.id ?? null);
+  }, [demoProjects, state.workspace?.name]);
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
       if (next === 'active') {
@@ -271,6 +280,39 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
     onDisconnect();
   }
 
+  async function chooseDemo(demoId: string) {
+    setBusy('demo-select'); setError(null);
+    try {
+      const selected = await selectDemo(client, demoId);
+      dispatch({ type: 'CLEAR_SESSION' });
+      dispatch({ type: 'WORKSPACE', workspace: selected.workspace });
+      setActiveDemoId(demoId);
+      setDemoProjects((items) => items.map((item) => item.id === demoId ? selected.demo : item));
+    } catch (requestError) { reportRequestError(requestError); }
+    finally { setBusy(null); }
+  }
+
+  function confirmDemoReset(demoId: string) {
+    Alert.alert(
+      'Reset this demo?',
+      'Only the registered demo source will be restored to its intentional broken state.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reset demo', style: 'destructive', onPress: () => { void performDemoReset(demoId); } },
+      ],
+    );
+  }
+
+  async function performDemoReset(demoId: string) {
+    setBusy('demo-reset'); setError(null);
+    try {
+      const reset = await resetDemo(client, demoId);
+      setDemoProjects((items) => items.map((item) => item.id === demoId ? reset.demo : item));
+      dispatch({ type: 'CLEAR_SESSION' });
+    } catch (requestError) { reportRequestError(requestError); }
+    finally { setBusy(null); }
+  }
+
   const voiceContext: VoiceSessionContext = {
     session_state: state.session?.state ?? null,
     patch_status: state.patch?.status ?? null,
@@ -357,7 +399,7 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
         {error !== null && <ErrorBanner message={error} onRetry={() => void refreshDashboard()} />}
         <Animated.View style={[styles.content, { opacity: fade }]}>
           {visionOpen ? <VisionScanner onAnalyze={analyzeVisionText} onClose={() => setVisionOpen(false)} onReviewText={reviewVisionText} onSpeak={() => setVoiceOpen(true)} /> : <>
-          {tab === 'HOME' && <HomeScreen state={state} provider={provider} onPaste={() => { setInputSource('TEXT'); setTab('DEBUG'); }} onScan={() => setVisionOpen(true)} onSpeak={() => setVoiceOpen(true)} currentSession={state.session} />}
+          {tab === 'HOME' && <HomeScreen activeDemoId={activeDemoId} busy={busy} currentSession={state.session} demoMode={demoMode} demos={demoProjects} onPaste={() => { setInputSource('TEXT'); setTab('DEBUG'); }} onResetDemo={confirmDemoReset} onScan={() => setVisionOpen(true)} onSelectDemo={(id) => void chooseDemo(id)} onSpeak={() => setVoiceOpen(true)} provider={provider} state={state} />}
           {tab === 'DEBUG' && (
             <DebugScreen
               analysis={state.analysis}
@@ -436,17 +478,29 @@ function PairingScreen({ onPaired }: { onPaired: (connection: StoredConnection) 
   );
 }
 
-function HomeScreen({ state, provider, onPaste, onScan, onSpeak, currentSession }: { state: WorkflowState; provider: ProviderHealth | null; onPaste: () => void; onScan: () => void; onSpeak: () => void; currentSession: DebugSession | null }) {
+function HomeScreen({ activeDemoId, busy, currentSession, demoMode, demos, onPaste, onResetDemo, onScan, onSelectDemo, onSpeak, provider, state }: { activeDemoId: string | null; busy: string | null; currentSession: DebugSession | null; demoMode: boolean; demos: ReadonlyArray<DemoProject>; onPaste: () => void; onResetDemo: (id: string) => void; onScan: () => void; onSelectDemo: (id: string) => void; onSpeak: () => void; provider: ProviderHealth | null; state: WorkflowState }) {
+  const activeDemo = demos.find((demo) => demo.id === activeDemoId);
   return (
     <ScrollView contentContainerStyle={styles.scrollPage}>
       <Text style={styles.homeTitle}>See it. Say it.{`\n`}Fix it.</Text>
       <StatusCard label="LAPTOP" value={state.connection === 'CONNECTED' ? 'CONNECTED' : state.connection} good={state.connection === 'CONNECTED'} />
       <Card>
         <Eyebrow>ACTIVE WORKSPACE</Eyebrow>
-        <Text style={styles.cardTitle}>{state.workspace?.name ?? 'Not selected on laptop'}</Text>
+        {activeDemoId !== null && <Badge label="DEMO WORKSPACE" tone="good" />}
+        <Text style={styles.cardTitle}>{activeDemo?.name ?? state.workspace?.name ?? 'Not selected on laptop'}</Text>
         <Text style={styles.cardCopy}>{state.workspace === null ? 'Select a workspace from PocketPilot Desktop Agent.' : `${state.workspace.languages.map((item) => item.name).join(' · ') || 'Project'} · ${state.workspace.detected_commands[0]?.label ?? 'No validation command'}`}</Text>
         <View style={styles.statusRow}><StatusDot good={state.workspace !== null} /><Text style={styles.statusText}>{state.workspace === null ? 'WAITING FOR LAPTOP' : 'READY'}</Text></View>
       </Card>
+      {demoMode && <Card accent>
+        <Eyebrow>DEMO PROJECTS</Eyebrow>
+        <Text style={styles.cardTitle}>Choose a registered scenario</Text>
+        <Text style={styles.cardCopy}>The phone sends only a safe demo ID. The laptop owns every project path.</Text>
+        {demos.map((demo) => <View key={demo.id} style={styles.demoMobileRow}>
+          <View style={styles.titleCopy}><Text style={styles.sessionTitle}>{demo.name}</Text><Text style={styles.cardCopy}>{demo.status.replaceAll('_', ' ')} · {demo.language}</Text></View>
+          <Pressable accessibilityLabel={`Select ${demo.name}`} disabled={busy !== null} onPress={() => onSelectDemo(demo.id)}><Text style={styles.link}>{activeDemoId === demo.id ? 'ACTIVE' : 'SELECT'}</Text></Pressable>
+          <Pressable accessibilityLabel={`Reset ${demo.name}`} disabled={busy !== null} onPress={() => onResetDemo(demo.id)}><Text style={styles.link}>RESET</Text></Pressable>
+        </View>)}
+      </Card>}
       <Card>
         <Eyebrow>LOCAL AI</Eyebrow>
         <Text style={styles.cardTitle}>{provider?.provider ?? 'Checking provider'}</Text>
@@ -487,6 +541,12 @@ function DebugScreen(props: {
       <Pipeline steps={props.steps} />
       {props.analysis !== null && <RootCause analysis={props.analysis} busy={props.busy !== null} canGenerate={props.session.state === 'ROOT_CAUSE_FOUND'} onGenerate={props.onGenerate} />}
       {props.session.state === 'ROOT_CAUSE_FOUND' && props.patch === null && props.busy === null && <SecondaryButton label="REVIEW ERROR TEXT" onPress={props.onReset} />}
+      {props.session.state === 'FAILED' && props.patch === null && <Card>
+        <Text style={[styles.heroStatus, styles.failureText]}>PATCH NOT GENERATED</Text>
+        <Text style={styles.cardCopy}>The error did not resolve to a safe repository file. Retry analysis after reviewing the captured text.</Text>
+        {props.session.retry_count < 2 && <SecondaryButton label="TRY ANALYSIS AGAIN" onPress={props.onRetry} />}
+        <SecondaryButton label="START OVER" onPress={props.onReset} />
+      </Card>}
       {props.patch !== null && <PatchPanel busy={props.busy} onApprove={props.onApprove} onReject={props.onReject} onRetry={props.onRetry} onRollback={props.onRollback} patch={props.patch} session={props.session} />}
       {['SUCCESS', 'ROLLED_BACK'].includes(props.session.state) && <SecondaryButton label="DONE" onPress={props.onReset} />}
     </ScrollView>
@@ -554,6 +614,7 @@ function handleError(error: unknown, setError: (message: string) => void, onUnau
   else setError(error instanceof Error ? error.message : 'PocketPilot could not complete the request.');
 }
 function conciseTitle(text: string): string { const first = text.split('\n').find((line) => line.trim())?.trim() ?? 'Mobile debug issue'; return first.slice(0, 80); }
+function demoDirectoryName(demoId: string): string { return demoId === 'python-null-user' ? 'python-broken-app' : demoId === 'java-null-user' ? 'java-broken-app' : 'react-broken-app'; }
 function relativeTime(value: string): string { const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000)); if (seconds < 60) return 'Now'; if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`; if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr ago`; return `${Math.floor(seconds / 86400)} day ago`; }
 
 const styles = StyleSheet.create({
@@ -572,6 +633,7 @@ const styles = StyleSheet.create({
   metrics: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#273024', paddingVertical: 13 }, metric: { flex: 1 }, metricValue: { color: '#E9EEE5', fontSize: 13, fontWeight: '800' }, metricLabel: { color: '#657060', fontSize: 8, marginTop: 4, letterSpacing: 1 }, successActions: { gap: 9 },
   diffCard: { borderWidth: 1, borderColor: '#2B3428', borderRadius: 12, overflow: 'hidden', backgroundColor: '#070A08' }, diffHeader: { minHeight: 44, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, diffCount: { color: '#A9C481', fontSize: 10 }, diffBody: { minWidth: 600, paddingVertical: 10 }, diffLine: { color: '#A6B0A1', fontSize: 10, lineHeight: 17, fontFamily: 'monospace', paddingHorizontal: 12 }, diffAdd: { color: '#C9EFB0', backgroundColor: '#182615' }, diffRemove: { color: '#F0A99E', backgroundColor: '#2A1714' }, approvalNote: { color: '#929B8E', fontSize: 11, lineHeight: 17 }, progressBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, backgroundColor: '#111A0E' }, heroStatus: { color: '#EEF2EA', fontSize: 27, fontWeight: '900', letterSpacing: -.5 }, warningText: { color: '#E4BF6A', fontSize: 12, lineHeight: 19 },
   sessionCard: { minHeight: 76, padding: 14, borderWidth: 1, borderColor: '#283126', borderRadius: 15, backgroundColor: '#0E130F', flexDirection: 'row', alignItems: 'center', gap: 12 }, sessionCopy: { flex: 1 }, sessionTitle: { color: '#E4E9E0', fontSize: 13, fontWeight: '700' }, sessionTime: { color: '#687166', fontSize: 10, marginTop: 5 }, chevron: { color: '#87917F', fontSize: 25 }, link: { color: '#C8FF3D', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, emptyText: { color: '#687166', textAlign: 'center', marginTop: 60 },
+  demoMobileRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 14, borderTopWidth: 1, borderTopColor: '#273025', paddingTop: 10 },
   settingRow: { padding: 18, borderWidth: 1, borderColor: '#283126', borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, settingTitle: { color: '#E8ECE4', fontSize: 15, fontWeight: '700' }, toggle: { color: '#7A8476', fontSize: 11, fontWeight: '900' }, toggleOn: { color: '#C8FF3D' }, securityCopy: { color: '#737D70', fontSize: 11, lineHeight: 18 },
   errorBanner: { margin: 12, padding: 13, paddingRight: 80, borderRadius: 12, borderWidth: 1, borderColor: '#6A372E', backgroundColor: '#251512', gap: 10 }, errorCopy: { alignSelf: 'stretch' }, errorTitle: { color: '#FF8B75', fontSize: 8, fontWeight: '900', letterSpacing: 1 }, errorMessage: { color: '#D5A89F', fontSize: 10, lineHeight: 15, marginTop: 4 }, retry: { color: '#F0C96B', fontSize: 9, fontWeight: '900' },
   tabBar: { minHeight: 72, paddingBottom: 5, borderTopWidth: 1, borderTopColor: '#202720', backgroundColor: '#090D0A', flexDirection: 'row' }, tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 }, tabIcon: { color: '#596258', fontSize: 17 }, tabLabel: { color: '#596258', fontSize: 8, fontWeight: '800', letterSpacing: .8 }, tabActive: { color: '#C8FF3D' },

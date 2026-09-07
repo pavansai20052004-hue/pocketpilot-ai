@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { AgentEvent, AnalysisExecutionResponse, AnalysisRecord, CommandRun, DebugSession, DeviceList, PairingCodeView, PatchActionResponse, PatchGenerationResponse, PatchWorkflowView, ProviderHealth, SafeCommand, SessionTransitionResult, WorkspaceInfo } from '@pocketpilot/shared-types';
+import type { AgentEvent, AnalysisExecutionResponse, AnalysisRecord, CommandRun, DebugSession, DemoProject, DemoProjectList, DemoResetResult, DemoSelection, DeviceList, PairingCodeView, PatchActionResponse, PatchGenerationResponse, PatchWorkflowView, PreDemoCheckResult, ProviderHealth, SafeCommand, SessionTransitionResult, WorkspaceInfo } from '@pocketpilot/shared-types';
 
 const apiBaseUrl = import.meta.env.VITE_AGENT_HTTP_URL ?? 'http://127.0.0.1:8000';
 
@@ -22,11 +22,14 @@ export function App() {
   const [pairing, setPairing] = useState<PairingCodeView | null>(null);
   const [devices, setDevices] = useState<DeviceList>({ devices: [] });
   const [pairingNow, setPairingNow] = useState(Date.now());
+  const [demos, setDemos] = useState<ReadonlyArray<DemoProject>>([]);
+  const [preflight, setPreflight] = useState<PreDemoCheckResult | null>(null);
 
   useEffect(() => {
     void request<ProviderHealth>('/api/v1/analysis/provider').then(setProvider).catch(() => setProvider(null));
     void refreshDevices();
     void request<PairingCodeView>('/api/v1/devices/pairing-code').then(setPairing).catch(() => setPairing(null));
+    void refreshDemos();
   }, []);
 
   useEffect(() => {
@@ -42,6 +45,53 @@ export function App() {
   async function refreshDevices() {
     try { setDevices(await request<DeviceList>('/api/v1/devices')); }
     catch { setDevices({ devices: [] }); }
+  }
+
+  async function refreshDemos() {
+    try { setDemos((await request<DemoProjectList>('/api/v1/demo/projects')).demos); }
+    catch { setDemos([]); }
+  }
+
+  async function selectDemo(demoId: string) {
+    setBusyAction(`demo-select-${demoId}`); setError(null); setCommandRun(null);
+    try {
+      const selected = await request<DemoSelection>(`/api/v1/demo/select/${encodeURIComponent(demoId)}`, { method: 'POST' });
+      setWorkspace(selected.workspace); setWorkspacePath(selected.workspace.root_path);
+      setAnalysis(null); setAnalysisEvents([]); setDebugSession(null); setPatchWorkflow(null); setErrorText('');
+      setDemos((items) => items.map((item) => item.id === demoId ? selected.demo : item));
+    } catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
+  }
+
+  async function resetDemo(demoId: string) {
+    if (!window.confirm('Restore this registered demo to its intentional broken state?')) return;
+    setBusyAction(`demo-reset-${demoId}`); setError(null);
+    try {
+      const reset = await request<DemoResetResult>(`/api/v1/demo/reset/${encodeURIComponent(demoId)}`, { method: 'POST' });
+      setDemos((items) => items.map((item) => item.id === demoId ? reset.demo : item));
+      setAnalysis(null); setAnalysisEvents([]); setDebugSession(null); setPatchWorkflow(null); setErrorText('');
+      if (workspace?.name === demoDirectoryName(demoId)) {
+        const selected = await request<DemoSelection>(`/api/v1/demo/select/${encodeURIComponent(demoId)}`, { method: 'POST' });
+        setWorkspace(selected.workspace);
+      }
+    } catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
+  }
+
+  async function verifyDemo(demoId: string) {
+    setBusyAction(`demo-verify-${demoId}`); setError(null);
+    try {
+      const checked = await request<DemoProject>(`/api/v1/demo/verify/${encodeURIComponent(demoId)}`, { method: 'POST' });
+      setDemos((items) => items.map((item) => item.id === demoId ? checked : item));
+    } catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
+  }
+
+  async function runPreflight() {
+    setBusyAction('demo-preflight'); setError(null);
+    try { setPreflight(await request<PreDemoCheckResult>('/api/v1/demo/preflight')); }
+    catch (requestError) { setError(messageFrom(requestError)); }
+    finally { setBusyAction(null); }
   }
 
   async function generatePairingCode() {
@@ -204,6 +254,35 @@ export function App() {
           <h1>Inspect locally.<br />Execute deliberately.</h1>
         </div>
         <p>Select one project root. PocketPilot indexes safe metadata and offers only evidence-backed build and test actions.</p>
+      </section>
+
+      <section className="demo-panel">
+        <div className="panel-heading">
+          <div><span className="kicker">HACKATHON DEMOS</span><h2>Deterministic multi-language suite</h2></div>
+          <button className="secondary-button" disabled={busyAction !== null} onClick={() => void runPreflight()} type="button">
+            {busyAction === 'demo-preflight' ? 'CHECKING…' : 'RUN PRE-DEMO CHECK'}
+          </button>
+        </div>
+        <p className="analysis-note">Each status comes from a real registered test command. Demo selection never accepts a phone-supplied path.</p>
+        <div className="demo-grid">
+          {demos.map((demo) => <article className="demo-card" key={demo.id}>
+            <div><span className="kicker">{demo.language}</span><h3>{demo.name}</h3></div>
+            <span className={`demo-status demo-${demo.status.toLowerCase()}`}>{demo.status.replaceAll('_', ' ')}</span>
+            <p>{demo.detail}</p>
+            <small>{demo.framework} · {demo.validation_duration_ms} ms</small>
+            <div className="demo-actions">
+              <button disabled={busyAction !== null} onClick={() => void selectDemo(demo.id)} type="button">SELECT</button>
+              <button disabled={busyAction !== null} onClick={() => void resetDemo(demo.id)} type="button">RESET</button>
+              <button disabled={busyAction !== null} onClick={() => void verifyDemo(demo.id)} type="button">VERIFY</button>
+            </div>
+          </article>)}
+          {demos.length === 0 && <p className="muted">Demo status is not available yet.</p>}
+        </div>
+        {preflight !== null && <div className="readiness-panel">
+          <div><span className="kicker">READY TO DEMO</span><strong>{preflight.overall.replaceAll('_', ' ')}</strong></div>
+          <span>{preflight.provider === 'ollama' ? 'LOCAL AI' : 'DETERMINISTIC DEMO MODE'} · {preflight.model}</span>
+          <div>{preflight.checks.map((check) => <p key={check.name}><b>{check.name}</b><span>{check.status.replaceAll('_', ' ')}</span></p>)}</div>
+        </div>}
       </section>
 
       <section className="workspace-bar">
@@ -411,6 +490,10 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function demoDirectoryName(demoId: string): string {
+  return demoId === 'python-null-user' ? 'python-broken-app' : demoId === 'java-null-user' ? 'java-broken-app' : 'react-broken-app';
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

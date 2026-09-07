@@ -242,3 +242,17 @@ Recognition, resolution, validation, action execution, and TTS are separate inte
 Read-only explanation intents format the already validated analysis, patch, session, and test data. Patch generation uses the same generation callback as the button. Approval and rollback require a second confirmation and then submit the current patch ID plus optimistic revision through the same endpoint as the button. Backend hash, revision, risk, test-command, and rollback-conflict checks remain authoritative.
 
 Voice-triggered requests carry `action_source: VOICE` independently from analysis `input_type`. This preserves the distinction between speaking an action and dictating error content. Microphone audio is not persisted by PocketPilot; Android’s selected recognition service receives it and may use a network unless on-device behavior is physically verified.
+
+## Milestone 8 registered demo boundary
+
+```text
+desktop / phone demo ID → fixed DemoService registry → known demo directory
+  → existing WorkspaceService + SafeCommandRegistry + SafeProcessRunner
+
+registered reset ID → fixed file map → canonical broken bytes → atomic replacement
+  → real expected-failure validation → DEMO_READY
+```
+
+The demo API accepts IDs only. It has no request model containing a filesystem path, and unknown, traversal-like, absolute, encoded, or malformed IDs fail before file access. `DemoService` resolves every project, fixture, and target beneath the repository-owned demo roots and replaces only the explicitly registered source files. A normal health check never writes.
+
+Each health result comes from the existing scanner, allowlist, and no-shell bounded runner. `READY` means the expected intentional error type and file token occurred in a real failed test. A passing test means the demo is already fixed and reports `BROKEN_SETUP`; an absent runner such as Maven reports `TOOL_MISSING`. Mock-provider mappings are deterministic test fixtures, while Ollama remains generic and visibly distinct.

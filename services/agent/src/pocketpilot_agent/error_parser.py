@@ -20,6 +20,11 @@ class ErrorParser:
         r'^[ \t]*(?P<path>[^\r\n]+?\.py):[ \t]*(?P<line>\d+):[ \t]*in[ \t]+(?P<symbol>\w+)[ \t]*$',
         re.MULTILINE,
     )
+    _pytest_compact_frame = re.compile(
+        r'^[ \t]*(?P<path>[^:\r\n]+?\.py):[ \t]*(?P<line>\d+):[ \t]*'
+        r'[\w.]*(?:Error|Exception|Failure)\b(?:[ \t:].*)?$',
+        re.MULTILINE,
+    )
     _js_frame = re.compile(
         r"(?:\bat\s+(?:(?P<symbol>[\w.$<>]+)\s+\()?)(?P<path>[^\s():]+\.(?:[cm]?[jt]sx?)):(?P<line>\d+)(?::\d+)?\)?"
     )
@@ -37,6 +42,7 @@ class ErrorParser:
             ("Java", self._java_frame),
             ("Python", self._python_frame),
             ("Python", self._pytest_frame),
+            ("Python", self._pytest_compact_frame),
             ("JavaScript/TypeScript", self._js_frame),
         )
         for pattern_language, pattern in patterns:
@@ -66,7 +72,11 @@ class ErrorParser:
     def _language(text: str, hint: str | None) -> str:
         if hint and hint.strip():
             return hint.strip()[:100]
-        if "Traceback (most recent call last)" in text or re.search(r'File ".+\.py"', text):
+        if (
+            "Traceback (most recent call last)" in text
+            or re.search(r'File ".+\.py"', text)
+            or re.search(r"\.py:\s*\d+:", text)
+        ):
             return "Python"
         if re.search(r"\bat\s+[\w.$]+\([^)]*\.java:\d+\)", text):
             return "Java"

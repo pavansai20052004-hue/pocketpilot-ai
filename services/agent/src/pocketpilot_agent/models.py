@@ -584,3 +584,56 @@ class PairDeviceResponse(StrictModel):
 
 class DeviceList(StrictModel):
     devices: list[DeviceView]
+
+
+class DemoHealthStatus(StrEnum):
+    READY = "READY"
+    TOOL_MISSING = "TOOL_MISSING"
+    BROKEN_SETUP = "BROKEN_SETUP"
+
+
+class DemoProject(StrictModel):
+    id: str
+    name: str
+    language: str
+    framework: str
+    expected_error_type: str
+    expected_file: str
+    critical_ocr_tokens: list[str]
+    status: DemoHealthStatus
+    detail: str
+    validation_duration_ms: int = Field(ge=0)
+
+
+class DemoProjectList(StrictModel):
+    demos: list[DemoProject]
+
+
+class DemoSelection(StrictModel):
+    demo: DemoProject
+    workspace: WorkspaceInfo
+
+
+class DemoResetResult(StrictModel):
+    demo: DemoProject
+    result: str
+    restored_files: list[str]
+
+
+class DemoResetAllResult(StrictModel):
+    demos: list[DemoResetResult]
+    overall: str
+
+
+class PreDemoCheck(StrictModel):
+    name: str
+    status: str
+    detail: str
+
+
+class PreDemoCheckResult(StrictModel):
+    title: str = "POCKETPILOT DEMO READINESS"
+    checks: list[PreDemoCheck]
+    overall: str
+    provider: str
+    model: str

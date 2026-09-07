@@ -1,0 +1,22 @@
+{
+  "id": "python-null-user",
+  "name": "Python User Service",
+  "language": "Python",
+  "framework": "pytest",
+  "expected_error_type": "TypeError",
+  "expected_file": "user_service.py",
+  "validation_command_id": "auto-detected-test",
+  "expected_failure_count": 1,
+  "expected_success_count": 2,
+  "expected_root_cause_concepts": [
+    "missing None validation",
+    "user may be None",
+    "subscript occurs before fallback"
+  ],
+  "expected_patch": {
+    "changed_files": 1,
+    "expected_file": "user_service.py",
+    "concept": "guard None and return Unknown"
+  },
+  "critical_ocr_tokens": ["TypeError", "NoneType", "user_service.py", "get_user_name"]
+}

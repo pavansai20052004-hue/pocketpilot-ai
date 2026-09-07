@@ -50,6 +50,19 @@ def test_parses_physical_phone_frame_formats(frame: str) -> None:
     assert parsed.frames[0].symbol == "get_user_name"
 
 
+def test_parses_compact_pytest_failure_frame_from_camera_ocr() -> None:
+    parsed = ErrorParser().parse(
+        "TypeError: 'NoneType' object is not subscriptable\n"
+        "user_service.py:5: TypeError"
+    )
+
+    assert parsed.language == "Python"
+    assert len(parsed.frames) == 1
+    assert parsed.frames[0].path == "user_service.py"
+    assert parsed.frames[0].line == 5
+    assert parsed.frames[0].symbol is None
+
+
 @pytest.mark.parametrize("frame", [
     'File"user_service. py",line 5, in get_user_name',
     'File"user_service.py",line unknown, in get_user_name',

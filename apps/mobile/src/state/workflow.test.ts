@@ -30,4 +30,14 @@ describe('mobile workflow reducer', () => {
     const reconciled = workflowReducer(withLive, { type: 'SNAPSHOT', session: session('ROOT_CAUSE_FOUND', 4), events: [event(2, 'error_captured', 'CAPTURED'), event(3, 'analysis_requested', 'ANALYZING'), event(5, 'root_cause_found', 'ROOT_CAUSE_FOUND')] });
     expect(reconciled.events.map((item) => item.sequence)).toEqual([2, 3, 5]);
   });
+
+  it('clears a demo session without dropping connection or workspace', () => {
+    const connected = workflowReducer(initialWorkflowState, { type: 'CONNECTION', status: 'CONNECTED' });
+    const withSession = workflowReducer(connected, { type: 'SESSION', session: session('SUCCESS', 9) });
+
+    const cleared = workflowReducer(withSession, { type: 'CLEAR_SESSION' });
+
+    expect(cleared.connection).toBe('CONNECTED');
+    expect(cleared.session).toBeNull();
+  });
 });

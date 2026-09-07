@@ -4,7 +4,7 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 7 safe push-to-talk voice commands are implemented and physically verified on Android. Milestone 6 camera/OCR remains verified. Voice maps transcripts onto a closed, state-checked intent set; approval and rollback require confirmation, and speech never becomes a shell or filesystem command. iQOO Office Kit is not implemented.
+> Current phase: Milestone 8 is complete with deterministic Python, Java, and React hackathon demos, registered-ID selection, safe reset, health checks, and preflight. Camera/OCR and voice were regression-tested on the physical Android phone. Java is currently `TOOL_MISSING` because Maven is not installed; iQOO Office Kit is not implemented.
 
 ## Foundation architecture
 
@@ -33,6 +33,16 @@ Copy-Item .env.example .env
 ```
 
 If PowerShell cannot find Python but Codex workspace dependencies are installed, use their reported Python executable in place of `python`.
+
+## Hackathon quick start
+
+1. Run `npm run demo:check` and note any honest readiness warnings.
+2. Run `npm run demo:start` to start FastAPI and the desktop dashboard.
+3. Run `npm run demo:reset` to restore and verify every registered scenario.
+4. Open `http://127.0.0.1:4173`, select **Python User Service**, and pair the phone.
+5. Run the real failing pytest command, scan it, generate a fix, review, approve, and show the real passing validation.
+
+Run `npm run demo:check` again after startup for the final green readiness view. Preflight never installs tools, pulls models, changes the firewall, or deletes files. See the [master script](docs/demo-script.md) and [recovery playbook](docs/demo-recovery.md).
 
 ## Start and pair
 
@@ -96,6 +106,11 @@ Milestone 6 passed on a physical Android handset on 2026-09-04 using EAS develop
 | `POST` | `/api/v1/devices/pair` | Exchange a code for an opaque device token |
 | `GET` | `/api/v1/devices` | Loopback-only: list paired devices |
 | `POST` | `/api/v1/devices/{device_id}/revoke` | Loopback-only: revoke a device immediately |
+| `GET` | `/api/v1/demo/projects` | Run real health checks for registered demos |
+| `POST` | `/api/v1/demo/select/{demo_id}` | Select one server-registered demo ID |
+| `POST` | `/api/v1/demo/reset/{demo_id}` | Restore and verify one registered demo |
+| `POST` | `/api/v1/demo/verify/{demo_id}` | Reproduce the expected real failure |
+| `GET` | `/api/v1/demo/preflight` | Return honest agent/provider/demo readiness |
 
 Session routes:
 
@@ -138,7 +153,7 @@ services/
   agent/           FastAPI local agent
 packages/
   shared-types/    Strict TypeScript client contracts
-demo/              Reserved for deterministic demo repositories
+demo/              Deterministic Python, Java, React, and OCR fixtures
 docs/              Architecture and hackathon documentation
 ```
 

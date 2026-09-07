@@ -53,6 +53,29 @@ class MockPatchProvider:
                 python.relative_path,
                 diff,
             )
+        react = next(
+            (item for item in files if item.relative_path.endswith("UserProfile.tsx")), None
+        )
+        if react is not None:
+            diff = (
+                f"--- a/{react.relative_path}\n"
+                f"+++ b/{react.relative_path}\n"
+                "@@ -9,5 +9,8 @@\n"
+                " }\n"
+                " \n"
+                " export function UserProfile({ user }: UserProfileProps): ReactElement {\n"
+                "+  if (user === null) {\n"
+                "+    return <h1>Guest</h1>;\n"
+                "+  }\n"
+                "   return <h1>{user.name}</h1>;\n"
+                " }\n"
+            )
+            return self._response(
+                "Render a safe profile fallback",
+                "Render Guest while nullable user data is unavailable.",
+                react.relative_path,
+                diff,
+            )
         java = next(
             (item for item in files if item.relative_path.endswith("UserService.java")), None
         )

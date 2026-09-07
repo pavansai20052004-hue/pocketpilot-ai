@@ -18,6 +18,7 @@ export type WorkflowAction =
   | { readonly type: 'SNAPSHOT'; readonly session: DebugSession; readonly events: ReadonlyArray<AgentEvent>; readonly patch?: PatchWorkflowView | null }
   | { readonly type: 'ANALYSIS'; readonly analysis: AnalysisRecord }
   | { readonly type: 'PATCH'; readonly patch: PatchWorkflowView }
+  | { readonly type: 'CLEAR_SESSION' }
   | { readonly type: 'RESET' };
 
 export const initialWorkflowState: WorkflowState = { connection: 'DISCONNECTED', workspace: null, session: null, events: [], analysis: null, patch: null };
@@ -29,6 +30,7 @@ export function workflowReducer(state: WorkflowState, action: WorkflowAction): W
     case 'SESSION': return { ...state, session: action.session };
     case 'ANALYSIS': return { ...state, analysis: action.analysis };
     case 'PATCH': return { ...state, patch: action.patch };
+    case 'CLEAR_SESSION': return { ...state, session: null, events: [], analysis: null, patch: null };
     case 'EVENT': {
       if (state.events.some((event) => event.sequence === action.event.sequence)) return state;
       return { ...state, events: [...state.events, action.event].sort((a, b) => a.sequence - b.sequence) };

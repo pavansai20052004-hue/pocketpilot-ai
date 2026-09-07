@@ -1,0 +1,22 @@
+{
+  "id": "react-null-profile",
+  "name": "React User Profile",
+  "language": "TypeScript",
+  "framework": "React / Vitest",
+  "expected_error_type": "TypeError",
+  "expected_file": "src/UserProfile.tsx",
+  "validation_command_id": "auto-detected-test",
+  "expected_failure_count": 1,
+  "expected_success_count": 2,
+  "expected_root_cause_concepts": [
+    "user data may be null",
+    "render accesses name without a guard",
+    "fallback UI is missing"
+  ],
+  "expected_patch": {
+    "changed_files": 1,
+    "expected_file": "src/UserProfile.tsx",
+    "concept": "render Guest when user is null"
+  },
+  "critical_ocr_tokens": ["TypeError", "UserProfile.tsx", "user", "null"]
+}

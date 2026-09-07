@@ -1,0 +1,22 @@
+{
+  "id": "java-null-user",
+  "name": "Java User Service",
+  "language": "Java",
+  "framework": "JUnit / Maven",
+  "expected_error_type": "NullPointerException",
+  "expected_file": "src/main/java/demo/UserService.java",
+  "validation_command_id": "auto-detected-test",
+  "expected_failure_count": 1,
+  "expected_success_count": 2,
+  "expected_root_cause_concepts": [
+    "repository result may be null",
+    "null input is not validated",
+    "dereference causes NullPointerException"
+  ],
+  "expected_patch": {
+    "changed_files": 1,
+    "expected_file": "src/main/java/demo/UserService.java",
+    "concept": "guard the missing repository result and return Unknown"
+  },
+  "critical_ocr_tokens": ["NullPointerException", "UserService.java", "displayName", "missingUserUsesFallback"]
+}

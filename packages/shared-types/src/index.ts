@@ -335,3 +335,28 @@ export interface PairDeviceRequest { readonly code: string; readonly display_nam
 export interface DeviceView { readonly device_id: string; readonly display_name: string; readonly paired_at: string; readonly last_seen: string; readonly status: DeviceStatus; readonly token_created_at: string; readonly token_expires_at: string; readonly permissions: ReadonlyArray<DevicePermission>; }
 export interface PairDeviceResponse { readonly device: DeviceView; readonly token: string; }
 export interface DeviceList { readonly devices: ReadonlyArray<DeviceView>; }
+
+export type DemoHealthStatus = 'READY' | 'TOOL_MISSING' | 'BROKEN_SETUP';
+export interface DemoProject {
+  readonly id: string;
+  readonly name: string;
+  readonly language: string;
+  readonly framework: string;
+  readonly expected_error_type: string;
+  readonly expected_file: string;
+  readonly critical_ocr_tokens: ReadonlyArray<string>;
+  readonly status: DemoHealthStatus;
+  readonly detail: string;
+  readonly validation_duration_ms: number;
+}
+export interface DemoProjectList { readonly demos: ReadonlyArray<DemoProject>; }
+export interface DemoSelection { readonly demo: DemoProject; readonly workspace: WorkspaceInfo; }
+export interface DemoResetResult { readonly demo: DemoProject; readonly result: string; readonly restored_files: ReadonlyArray<string>; }
+export interface PreDemoCheck { readonly name: string; readonly status: string; readonly detail: string; }
+export interface PreDemoCheckResult {
+  readonly title: string;
+  readonly checks: ReadonlyArray<PreDemoCheck>;
+  readonly overall: string;
+  readonly provider: string;
+  readonly model: string;
+}

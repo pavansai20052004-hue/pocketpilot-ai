@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     pairing_code_ttl_seconds: int = 300
     pairing_max_attempts: int = 5
     device_token_ttl_seconds: int = 86_400
+    demo_root_path: str = "demo"
 
     @property
     def allowed_desktop_origins(self) -> list[str]:

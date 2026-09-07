@@ -1,0 +1,10 @@
+FAIL  src/UserProfile.test.tsx > UserProfile > renders Guest while user data is missing
+TypeError: Cannot read properties of null (reading 'name')
+ ❯ UserProfile src/UserProfile.tsx:12:20
+     11| export function UserProfile({ user }: UserProfileProps): ReactElement {
+     12|   return <h1>{user.name}</h1>;
+       |                    ^
+ ❯ src/UserProfile.test.tsx:11:12
+
+Test Files  1 failed (1)
+Tests       1 failed | 1 passed (2)

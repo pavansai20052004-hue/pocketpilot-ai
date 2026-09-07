@@ -1,0 +1,21 @@
+# Judge Q&A
+
+**What makes this different from Copilot?** PocketPilot is a phone-first debugging control plane: it captures physical terminal errors, selects bounded local repository context, proposes a reviewable patch, and runs only detected safe validation commands after approval.
+
+**Why phone-first, camera, and voice?** The phone can capture an error from any visible screen and lets a developer review or act while away from the keyboard. Camera and voice complement the normal desktop controls; neither is required.
+
+**Why local AI? Does source leave the laptop?** Ollama can keep analysis on the laptop. Repository files, secrets, patches, tests, and rollback snapshots stay there. Camera images stay on the phone; only confirmed OCR text is sent over the authenticated LAN connection. The selected Android speech service may use internet unless on-device speech is verified.
+
+**Can AI execute arbitrary commands?** No. Model text never becomes shell input. Commands come from immutable templates detected from project manifests and run with no shell, a fixed directory, timeout, and bounded output.
+
+**What if it hallucinates or the patch is stale?** Structured output and file references are validated. A patch must apply cleanly to supplied context, pass size/risk rules, and match original hashes immediately before application. The user reviews and approves it; real tests decide success.
+
+**What prevents destructive rollback?** PocketPilot snapshots only touched files and restores them only if their post-patch hashes still match. Newer edits create a conflict instead of being overwritten.
+
+**What happens without internet?** Installed project dependencies and an installed/running Ollama model work locally. Mock mode is a visibly labeled deterministic engineering fallback, never presented as Ollama.
+
+**Which languages work? Does this only work for demos?** The shared parser/context/patch pipeline supports Python, Java, JavaScript, and TypeScript patterns. This milestone proves Python and React live and supplies Java with conditional Maven validation. Demo mappings exist only in the mock provider/reset registry; production Ollama remains generic.
+
+**What is Office Kit’s role?** It is a future optional bridge. No unsupported iQOO Office Kit integration is claimed; authenticated LAN WebSocket/HTTP is the verified path.
+
+PocketPilot’s honest differentiation is phone-first capture, local repository-aware analysis, human-reviewed patches, constrained real testing, voice interaction, local-first privacy, conflict-safe rollback, and one common cross-language workflow.

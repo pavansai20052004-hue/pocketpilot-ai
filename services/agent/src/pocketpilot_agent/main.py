@@ -14,6 +14,8 @@ from pocketpilot_agent.analysis_service import AnalysisService
 from pocketpilot_agent.analysis_store import AnalysisStore
 from pocketpilot_agent.api import router as api_router
 from pocketpilot_agent.config import Settings, get_settings
+from pocketpilot_agent.demo_api import router as demo_router
+from pocketpilot_agent.demo_service import DemoService
 from pocketpilot_agent.device_auth import bearer_token, is_trusted_local_client
 from pocketpilot_agent.device_registry import (
     DeviceAuthenticationError,
@@ -64,6 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         active_settings.ollama_model,
         active_settings.ollama_timeout_seconds,
     )
+    application.state.demo_service = DemoService(active_settings, workspace_service, provider)
     application.state.analysis_service = AnalysisService(
         sessions=session_service,
         events=application.state.session_event_broker,
@@ -138,6 +141,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(analysis_router)
     application.include_router(patch_router)
     application.include_router(devices_router)
+    application.include_router(demo_router)
 
     @application.get("/health", response_model=HealthResponse, tags=["system"])
     async def health() -> HealthResponse:
