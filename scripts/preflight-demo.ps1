@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Continue'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $repositoryRoot '.venv\Scripts\python.exe'
+$officialOllamaDirectory = Join-Path $env:LOCALAPPDATA 'Programs\Ollama'
+
+if (Test-Path -LiteralPath (Join-Path $officialOllamaDirectory 'ollama.exe') -PathType Leaf) {
+    $env:Path = "$officialOllamaDirectory;$env:Path"
+}
 
 Write-Output 'POCKETPILOT DEMO PREFLIGHT'
 foreach ($tool in @('node', 'npm', 'python', 'java', 'mvn', 'ollama')) {

@@ -24,6 +24,9 @@ def main() -> int:
         settings.ollama_base_url,
         settings.ollama_model,
         settings.ollama_timeout_seconds,
+        settings.ollama_context_tokens,
+        settings.ollama_max_output_tokens,
+        settings.ollama_keep_alive,
     )
     service = DemoService(settings, WorkspaceService(settings), provider)
     if arguments.action == "reset":

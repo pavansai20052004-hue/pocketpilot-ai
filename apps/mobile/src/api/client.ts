@@ -10,6 +10,7 @@ export type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 export interface RequestOptions extends RequestInit {
   readonly authenticated?: boolean;
   readonly retries?: number;
+  readonly timeoutMs?: number;
 }
 
 export class ApiError extends Error {
@@ -54,16 +55,22 @@ export class ApiClient {
   }
 
   private async once<T>(path: string, options: RequestOptions): Promise<T> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    const headers = new Headers(options.headers);
-    if (options.body !== undefined && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-    if (options.authenticated !== false) {
+    const {
+      authenticated = true,
+      timeoutMs = this.timeoutMs,
+      ...requestInit
+    } = options;
+    delete requestInit.retries;
+    const headers = new Headers(requestInit.headers);
+    if (requestInit.body !== undefined && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+    if (authenticated) {
       if (!this.token) throw new ApiError('Pair this phone before using PocketPilot.', 401, false);
       headers.set('Authorization', `Bearer ${this.token}`);
     }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await this.fetcher(`${this.baseUrl}${path}`, { ...options, headers, signal: controller.signal });
+      const response = await this.fetcher(`${this.baseUrl}${path}`, { ...requestInit, headers, signal: controller.signal });
       const payload: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         throw new ApiError(detailFrom(payload) ?? `Request failed (${response.status}).`, response.status, response.status >= 500 || response.status === 429);

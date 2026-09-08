@@ -65,6 +65,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         active_settings.ollama_base_url,
         active_settings.ollama_model,
         active_settings.ollama_timeout_seconds,
+        active_settings.ollama_context_tokens,
+        active_settings.ollama_max_output_tokens,
+        active_settings.ollama_keep_alive,
     )
     application.state.demo_service = DemoService(active_settings, workspace_service, provider)
     application.state.analysis_service = AnalysisService(
@@ -149,6 +152,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @application.get("/api/v1/system/status", response_model=SystemStatus, tags=["system"])
     async def system_status() -> SystemStatus:
+        model_health = await provider.health()
         return SystemStatus(
             service="PocketPilot Agent",
             version=__version__,
@@ -156,7 +160,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             components=ComponentStatus(
                 api="ready",
                 workspace="ready" if workspace_service.has_current else "not_configured",
-                model="ready" if active_settings.llm_provider == "mock" else "not_configured",
+                model="ready" if model_health.available else "unavailable",
             ),
         )
 

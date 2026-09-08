@@ -467,20 +467,20 @@ class PatchProposal(StrictModel):
 
 
 class PatchProviderFile(StrictModel):
-    relative_path: str
-    unified_diff: str
-    explanation: str
+    relative_path: str = Field(min_length=1, max_length=4096)
+    unified_diff: str = Field(min_length=1, max_length=100_000)
+    explanation: str = Field(min_length=1, max_length=1000)
 
 
 class PatchProviderOutput(StrictModel):
-    title: str
-    summary: str
-    rationale: str
+    title: str = Field(min_length=1, max_length=200)
+    summary: str = Field(min_length=1, max_length=2000)
+    rationale: str = Field(min_length=1, max_length=3000)
     confidence: AnalysisConfidence
     files: list[PatchProviderFile] = Field(min_length=1, max_length=5)
-    expected_effect: str
-    risks: list[str] = Field(default_factory=list)
-    validation_notes: list[str] = Field(default_factory=list)
+    expected_effect: str = Field(min_length=1, max_length=2000)
+    risks: list[str] = Field(default_factory=list, max_length=20)
+    validation_notes: list[str] = Field(default_factory=list, max_length=20)
 
 
 class GeneratePatchRequest(StrictModel):

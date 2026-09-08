@@ -126,6 +126,12 @@ class MockPatchProvider:
 
 
 class OllamaPatchProvider:
+    TYPE_CONSTRAINTS = """JSON types are mandatory: confidence is exactly one of the
+strings LOW, MEDIUM, or HIGH; files is an array of objects; risks and validation_notes are
+arrays of strings, even when empty; every other top-level field is a string. Each files item
+has exactly the string fields relative_path, unified_diff, and explanation. Never return a
+numeric confidence or a scalar where an array is required."""
+
     def __init__(self, provider: LLMProvider) -> None:
         self.provider = provider
         self.name = provider.name
@@ -134,5 +140,5 @@ class OllamaPatchProvider:
     async def generate(self, prompt: PatchPrompt, files: list[PatchSourceFile]) -> str:
         del files
         return await self.provider.complete(
-            PromptBundle(system=prompt.system, user=prompt.user)
+            PromptBundle(system=f"{prompt.system}\n{self.TYPE_CONSTRAINTS}", user=prompt.user)
         )

@@ -604,7 +604,7 @@ function messageFrom(error: unknown, presentationMode = false): string {
 
 export function providerDisplay(provider: string, model: string): string {
   if (provider.toLowerCase() === 'mock') return 'DETERMINISTIC DEMO PROVIDER';
-  if (provider.toLowerCase() === 'ollama') return `OLLAMA · ${model}`;
+  if (provider.toLowerCase() === 'ollama') return `LOCAL OLLAMA · ${model}`;
   return `${provider.toUpperCase()} · ${model}`;
 }
 

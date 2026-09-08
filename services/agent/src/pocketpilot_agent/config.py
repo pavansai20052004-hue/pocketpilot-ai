@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,8 +29,11 @@ class Settings(BaseSettings):
     session_database_path: str = ".pocketpilot/sessions.db"
     llm_provider: str = "mock"
     ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "qwen2.5-coder:7b"
-    ollama_timeout_seconds: float = 45.0
+    ollama_model: str = "qwen3-coder:30b"
+    ollama_timeout_seconds: float = Field(default=300.0, gt=0.0, le=600.0)
+    ollama_context_tokens: int = Field(default=8_192, ge=1_024, le=32_768)
+    ollama_max_output_tokens: int = Field(default=2_048, ge=256, le=4_096)
+    ollama_keep_alive: str = "15m"
     analysis_max_context_files: int = 6
     analysis_max_context_chars: int = 24_000
     analysis_max_lines_per_file: int = 80

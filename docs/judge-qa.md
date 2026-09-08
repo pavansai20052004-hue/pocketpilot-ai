@@ -20,7 +20,7 @@
 
 **What prevents destructive rollback?** PocketPilot snapshots only touched files and restores them only if their post-patch hashes still match. Newer edits create a conflict instead of being overwritten.
 
-**What happens without internet?** Installed project dependencies and an installed/running Ollama model work locally. Mock mode is a visibly labeled deterministic engineering fallback, never presented as Ollama.
+**What happens without internet?** Repository analysis and patch generation use the installed Ollama model through the laptop's loopback API, with no cloud-model integration. The attempted external-network isolation check required administrator rights and was not physically completed, so the submission does not claim a verified fully offline end-to-end run. Android speech may also use its selected service's network. Mock mode is a visibly labeled deterministic engineering fallback, never presented as Ollama.
 
 **Does the image leave the phone?** No. Camera and gallery images are OCR'd on-device by default; only editable text the user confirms is sent to the laptop.
 

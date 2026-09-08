@@ -18,6 +18,7 @@
     "demo:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/reset-demo.ps1",
     "demo:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/preflight-demo.ps1",
     "demo:benchmark": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/benchmark-demo.ps1",
+    "demo:benchmark:ollama": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/benchmark-ollama.ps1",
     "build": "npm run build --workspace=@pocketpilot/shared-types && npm run build --workspace=@pocketpilot/desktop-web && npm run export:web --workspace=@pocketpilot/mobile",
     "typecheck": "npm run build --workspace=@pocketpilot/shared-types && npm run typecheck --workspaces --if-present",
     "lint": "eslint apps packages",

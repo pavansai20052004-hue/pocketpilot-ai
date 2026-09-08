@@ -18,6 +18,6 @@ describe('foundation contracts', () => {
 
   it('labels deterministic and real local providers truthfully', () => {
     expect(providerDisplay('mock', 'deterministic-root-cause-v1')).toBe('DETERMINISTIC DEMO PROVIDER');
-    expect(providerDisplay('ollama', 'qwen2.5-coder:3b')).toBe('OLLAMA · qwen2.5-coder:3b');
+    expect(providerDisplay('ollama', 'qwen3-coder:30b')).toBe('LOCAL OLLAMA · qwen3-coder:30b');
   });
 });

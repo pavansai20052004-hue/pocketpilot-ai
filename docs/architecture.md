@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the Phase A foundation and extended through Milestone 9 presentation hardening on 2026-09-08.
+Accepted for the Phase A foundation and extended through Milestone 10 competition integration on 2026-09-08.
 
 ## Decision
 
@@ -99,7 +99,7 @@ Rejected as the default because offline reliability, source privacy, and local/o
 
 ### Direct vendor integration now
 
-Rejected until official iQOO/Vivo Office Kit material is available. The local WebSocket path must stay independently demonstrable.
+Rejected after an official-source review found Office Kit product functionality but no verified public developer API or supplied hackathon SDK. The authenticated local WebSocket path remains independently demonstrable, and `OfficeKitBridge` stays explicitly unimplemented unless documented access becomes available.
 
 ## Phase A exit criteria
 

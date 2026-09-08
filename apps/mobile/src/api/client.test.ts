@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiClient, normalizeBaseUrl, type Fetcher } from './client';
 import { pairDevice, parsePairDeviceResponse } from './devices';
-import { analyzeText } from './analysis';
-import { decidePatch, generatePatch } from './patches';
+import { analyzeText, LOCAL_ANALYSIS_TIMEOUT_MS } from './analysis';
+import { decidePatch, generatePatch, LOCAL_PATCH_GENERATION_TIMEOUT_MS, PATCH_DECISION_TIMEOUT_MS } from './patches';
 import { getWorkspace } from './workspaces';
 
 function jsonResponse(value: unknown, status = 200): Response {
@@ -99,5 +99,23 @@ describe('mobile API client', () => {
     expect(generated).toEqual({ expected_revision: 4, action_source: 'VOICE' });
     expect(approved).toEqual({ expected_revision: 4, action_source: 'VOICE' });
     expect(fetcher.mock.calls[1]?.[0]).toContain('/patches/patch-1/approve');
+  });
+
+  it('gives real local-model operations explicit time budgets beyond the fast API default', async () => {
+    const fetcher = vi.fn<Fetcher>().mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return jsonResponse({ session: {}, analysis: {}, workflow: {} });
+    });
+    const client = new ApiClient({ baseUrl: 'http://laptop:8000', token: 'token', timeoutMs: 1, fetcher });
+    const session = { id: 'session-1', revision: 4 } as Parameters<typeof generatePatch>[1];
+    const patch = { proposal: { id: 'patch-1' } } as Parameters<typeof decidePatch>[2];
+
+    await expect(analyzeText(client, session, 'TypeError: boom')).resolves.toBeDefined();
+    await expect(generatePatch(client, session)).resolves.toBeDefined();
+    await expect(decidePatch(client, session, patch, 'approve')).resolves.toBeDefined();
+
+    expect(LOCAL_ANALYSIS_TIMEOUT_MS).toBeGreaterThanOrEqual(300_000);
+    expect(LOCAL_PATCH_GENERATION_TIMEOUT_MS).toBeGreaterThanOrEqual(600_000);
+    expect(PATCH_DECISION_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
   });
 });

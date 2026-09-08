@@ -4,7 +4,7 @@
 
 The Android app is the primary PocketPilot experience. It pairs to a local laptop agent, captures or imports an error for on-device OCR, accepts pasted text, follows real events, reviews actual unified diffs, approves or rejects a revision-bound patch, displays real validation, and requests conflict-safe rollback. The desktop remains the workspace and device-administration surface.
 
-Camera/OCR and the safe voice workflow are implemented and physically verified in a native Android development build. Voice approval, real validation, TTS, rollback, dangerous-command rejection, and foreground recovery were completed by 2026-09-07. iQOO Office Kit remains unimplemented.
+Camera/OCR and the safe voice workflow are implemented and physically verified in a native Android development build. Voice approval, real validation, TTS, rollback, dangerous-command rejection, and foreground recovery were completed by 2026-09-07. Official-source research found no verified Office Kit developer API, so `OfficeKitBridge` remains explicitly unimplemented and the authenticated LAN bridge is the verified transport.
 
 ## Architecture
 

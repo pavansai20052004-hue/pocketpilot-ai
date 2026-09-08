@@ -2,6 +2,8 @@ import type { ActionSource, AnalysisExecutionResponse, AnalysisRecord, DebugSess
 
 import { ApiClient } from './client';
 
+export const LOCAL_ANALYSIS_TIMEOUT_MS = 330_000;
+
 export function analyzeText(
   client: ApiClient,
   session: DebugSession,
@@ -12,6 +14,7 @@ export function analyzeText(
 ): Promise<AnalysisExecutionResponse> {
   return client.request(`/api/v1/sessions/${encodeURIComponent(session.id)}/analyze`, {
     method: 'POST',
+    timeoutMs: LOCAL_ANALYSIS_TIMEOUT_MS,
     body: JSON.stringify({ input_type: inputType, raw_text: rawText, language_hint: languageHint?.trim() || null, file_hint: null, framework_hint: null, expected_revision: session.revision, action_source: actionSource }),
   });
 }

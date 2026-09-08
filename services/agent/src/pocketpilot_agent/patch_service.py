@@ -53,6 +53,10 @@ class InvalidPatchProposalError(ValueError):
     pass
 
 
+class RepairablePatchProposalError(InvalidPatchProposalError):
+    """A malformed provider response that may receive one constrained repair."""
+
+
 class PatchDecisionError(ValueError):
     pass
 
@@ -120,65 +124,56 @@ class PatchService:
                 raise AnalysisProviderError(
                     AnalysisStatus.TIMEOUT, "Local patch generation timed out."
                 ) from exc
-            generation_ms = self._elapsed(generation_started)
-            try:
-                output = PatchProviderOutput.model_validate_json(raw)
-            except ValidationError as exc:
-                raise InvalidPatchProposalError(
-                    "Patch provider returned invalid structured output."
-                ) from exc
             supplied = {item.relative_path: item for item in sources}
-            changes: list[PatchFileChange] = []
-            for item in output.files:
-                source = supplied.get(item.relative_path)
-                if source is None:
-                    raise InvalidPatchProposalError(
-                        f"Patch provider referenced an unsupplied file: {item.relative_path}."
-                    )
-                try:
-                    parsed = self.diff_parser.parse(item.unified_diff)
-                except UnifiedDiffError as exc:
-                    raise InvalidPatchProposalError(str(exc)) from exc
-                changes.append(
-                    PatchFileChange(
-                        relative_path=item.relative_path,
-                        unified_diff=item.unified_diff,
-                        explanation=item.explanation,
-                        original_sha256=source.sha256,
-                        additions=parsed.additions,
-                        deletions=parsed.deletions,
-                    )
-                )
-            proposal = PatchProposal(
-                id=str(uuid.uuid4()),
-                session_id=session_id,
-                title=output.title,
-                summary=output.summary,
-                rationale=output.rationale,
-                confidence=output.confidence,
-                files=changes,
-                expected_effect=output.expected_effect,
-                risks=output.risks,
-                validation_notes=output.validation_notes,
-                created_at=datetime.now(UTC),
-                provider=self.provider.name,
-                model=self.provider.model,
-                retry_number=session.retry_count,
-                generation_duration_ms=generation_ms,
-            )
             await self._progress(
                 session_id,
                 AgentEventName.PATCH_VALIDATION_STARTED,
                 "Deterministic patch validation started.",
             )
-            validation, _ = self.validator.validate(proposal, selected, set(supplied))
+            repaired = False
+            while True:
+                try:
+                    proposal = self._proposal_from_raw(
+                        raw=raw,
+                        session_id=session_id,
+                        retry_number=session.retry_count,
+                        sources=sources,
+                        generation_duration_ms=self._elapsed(generation_started),
+                    )
+                    validation, _ = self.validator.validate(
+                        proposal, selected, set(supplied)
+                    )
+                    if not validation.valid:
+                        reasons = "; ".join(validation.errors[:5])
+                        raise RepairablePatchProposalError(
+                            "Deterministic patch validation failed: " + reasons
+                        )
+                    break
+                except RepairablePatchProposalError as exc:
+                    if repaired:
+                        raise InvalidPatchProposalError(
+                            "Patch provider output remained malformed after one repair attempt."
+                        ) from exc
+                    repair_prompt = self.prompts.repair(prompt, raw, str(exc))
+                    try:
+                        raw = await asyncio.wait_for(
+                            self.provider.generate(repair_prompt, sources),
+                            self.timeout_seconds,
+                        )
+                    except TimeoutError as timeout_exc:
+                        raise AnalysisProviderError(
+                            AnalysisStatus.TIMEOUT,
+                            "Local patch repair timed out.",
+                        ) from timeout_exc
+                    repaired = True
+            proposal = proposal.model_copy(
+                update={"generation_duration_ms": self._elapsed(generation_started)}
+            )
             await self._progress(
                 session_id,
                 AgentEventName.PATCH_VALIDATION_COMPLETED,
                 f"Patch validation completed with {validation.risk} risk.",
             )
-            if not validation.valid:
-                raise InvalidPatchProposalError("Patch proposal failed deterministic validation.")
             record = PatchWorkflowRecord(
                 status=PatchStatus.PROPOSED,
                 proposal=proposal,
@@ -408,6 +403,70 @@ class PatchService:
     def get(self, session_id: str) -> PatchWorkflowView:
         self.sessions.get(session_id)
         return self.store.get(session_id).view()
+
+    def _proposal_from_raw(
+        self,
+        *,
+        raw: str,
+        session_id: str,
+        retry_number: int,
+        sources: list[PatchSourceFile],
+        generation_duration_ms: int,
+    ) -> PatchProposal:
+        try:
+            output = PatchProviderOutput.model_validate_json(raw)
+        except ValidationError as exc:
+            raise RepairablePatchProposalError(
+                "Patch provider returned invalid structured JSON."
+            ) from exc
+        supplied = {item.relative_path: item for item in sources}
+        changes: list[PatchFileChange] = []
+        for item in output.files:
+            source = supplied.get(item.relative_path)
+            if source is None:
+                raise InvalidPatchProposalError(
+                    f"Patch provider referenced an unsupplied file: {item.relative_path}."
+                )
+            try:
+                parsed = self.diff_parser.parse(item.unified_diff)
+            except UnifiedDiffError as exc:
+                raise RepairablePatchProposalError(str(exc)) from exc
+            if parsed.relative_path != item.relative_path:
+                raise RepairablePatchProposalError(
+                    "Unified diff header path does not match its declared relative_path."
+                )
+            changes.append(
+                PatchFileChange(
+                    relative_path=item.relative_path,
+                    unified_diff=item.unified_diff,
+                    explanation=item.explanation,
+                    original_sha256=source.sha256,
+                    additions=parsed.additions,
+                    deletions=parsed.deletions,
+                )
+            )
+        try:
+            return PatchProposal(
+                id=str(uuid.uuid4()),
+                session_id=session_id,
+                title=output.title,
+                summary=output.summary,
+                rationale=output.rationale,
+                confidence=output.confidence,
+                files=changes,
+                expected_effect=output.expected_effect,
+                risks=output.risks,
+                validation_notes=output.validation_notes,
+                created_at=datetime.now(UTC),
+                provider=self.provider.name,
+                model=self.provider.model,
+                retry_number=retry_number,
+                generation_duration_ms=generation_duration_ms,
+            )
+        except ValidationError as exc:
+            raise RepairablePatchProposalError(
+                "Patch provider fields violate proposal constraints."
+            ) from exc
 
     def _sources(
         self,

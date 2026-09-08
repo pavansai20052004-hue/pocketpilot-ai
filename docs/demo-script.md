@@ -19,7 +19,7 @@ Primary: Python User Service. Backup 1: React User Profile. Java is backup 2 onl
 
 Do not include rollback unless time remains. During Q&A, use **Undo Fix**, rerun the registered test, and show the original failure returns.
 
-Record the physical rehearsal time in the Milestone 9 final report. Do not replace it with automated benchmark time.
+Record the physical rehearsal time in the final readiness report. Keep it separate from automated deterministic and real-model benchmark time.
 
 ## 60-second version
 

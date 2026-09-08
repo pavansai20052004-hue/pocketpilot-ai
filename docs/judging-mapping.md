@@ -7,13 +7,13 @@ This document maps the product strategy to evidence we intend to demonstrate. St
 | Product quality | Phone-first approval flow, readable diff, explicit progress, rollback, polished success state | M4–M9 | Implemented; polished physical presentation and rollback verified |
 | Technical depth | Typed state machine, persistent sequenced events, reconnect recovery, bounded context retrieval, provider abstraction, validated unified diffs | M2–M4 | Implemented and regression-tested |
 | Creative smartphone usage | Camera-led error capture, editable device OCR, constrained voice actions, phone approval | M5–M7 | Implemented and verified on the physical iQOO phone |
-| AI / local open source | Configurable Ollama coding model, structured outputs, deterministic fallback clearly disclosed | M3, M9 | Provider abstraction implemented; Ollama is not installed on this laptop, so the presentation currently uses the labeled deterministic provider |
+| AI / local open source | Configurable Ollama coding model, structured outputs, deterministic fallback clearly disclosed | M3, M10 | Official Ollama 0.33.3 and `qwen3-coder:30b` are installed, health-checked, and passed 5/5 complete Python repair/test/rollback cycles; Ollama is the primary provider and the labeled deterministic provider is the backup |
 | Phone ↔ laptop workflow | Replaceable `DeviceBridge`, authenticated local Wi-Fi WebSocket, reconnect recovery, live event timeline | M2, M5 | Implemented and physically verified |
 | Demo reliability | Resettable broken repositories, genuine tests, readiness checks, bounded retries, safe start/stop helpers | M6, M8–M9 | Python passed 5/5 cycles and React passed 3/3; Java is honestly `TOOL_MISSING` without Maven |
 | Novel developer usefulness | Move from photographed laptop failure to reviewed and verified local patch without abandoning the phone | M6–M9 | Physical polished hero flow and 42.3-second rehearsal verified |
 | Safety and trust | One workspace capability, sensitive-file protection, human approval, non-shell allowlisted runner, hash-safe rollback | M1, M4 | Implemented and regression-tested |
 | Feasibility | Runnable Expo, FastAPI, and Vite foundations sharing strict contracts | M0 | Implemented |
-| iQOO differentiation | Verified Office Kit adapter only if official access is available; robust WebSocket fallback regardless | M10 | Not implemented; official documentation or SDK access is required first |
+| iQOO differentiation | Verified Office Kit adapter only if official access is available; robust WebSocket fallback regardless | M10 | Classification C: the product feature exists, but no verified public or hackathon developer API was found; the authenticated LAN bridge is the implemented and physically verified path |
 
 ## North-star demo evidence
 

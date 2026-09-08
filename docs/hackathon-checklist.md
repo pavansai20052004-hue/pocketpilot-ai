@@ -6,10 +6,12 @@
 - [ ] Charge the power bank and pack cables.
 - [ ] Verify the development APK launches.
 - [ ] Verify laptop–phone pairing on the intended private network.
-- [ ] If real Ollama will be used, install and cache the one approved model in advance.
+- [ ] Verify Ollama 0.33.3 or the currently approved version and cache `qwen3-coder:30b` in advance.
+- [ ] Run `ollama list`, provider health, and one warm-up request; confirm **LOCAL OLLAMA · qwen3-coder:30b** is visible.
 - [ ] Cache Python and React demo dependencies.
 - [ ] Run `npm run demo:check`.
 - [ ] Run `npm run demo:benchmark` and confirm Python 5/5 and React 3/3.
+- [ ] Run `npm run demo:benchmark:ollama` and use real Ollama as primary only at 4/5 or better.
 - [ ] Rehearse the Python hero flow twice on the physical phone.
 - [ ] Verify the React backup.
 - [ ] Confirm Java is shown honestly as `READY` or `TOOL_MISSING`.
@@ -25,6 +27,7 @@
 - [ ] Test camera capture and editable OCR.
 - [ ] Test one microphone command.
 - [ ] Verify the provider label and health.
+- [ ] Preload the real model so the live demo does not include a cold 19 GB model load.
 - [ ] Close unrelated apps and notifications.
 - [ ] Increase terminal font size and use a clean high-contrast layout.
 

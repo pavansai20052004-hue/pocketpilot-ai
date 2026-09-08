@@ -12,6 +12,49 @@ from pocketpilot_agent.main import create_app
 from pocketpilot_agent.patch_provider import MockPatchProvider
 
 
+class SequencePatchProvider:
+    name = "test-sequence"
+    model = "test-sequence-v1"
+
+    def __init__(
+        self, responses: list[str], delays: list[float] | None = None
+    ) -> None:
+        self.responses = responses
+        self.delays = delays or []
+        self.call_count = 0
+
+    async def generate(self, prompt: object, files: object) -> str:
+        del prompt, files
+        index = min(self.call_count, len(self.responses) - 1)
+        delay = self.delays[index] if index < len(self.delays) else 0
+        if delay:
+            await asyncio.sleep(delay)
+        response = self.responses[index]
+        self.call_count += 1
+        return response
+
+
+def patch_response(diff: str, path: str = "user_service.py") -> str:
+    return json.dumps(
+        {
+            "title": "Handle missing user",
+            "summary": "Return the documented fallback.",
+            "rationale": "The input may be None.",
+            "confidence": "HIGH",
+            "files": [
+                {
+                    "relative_path": path,
+                    "unified_diff": diff,
+                    "explanation": "Guard the missing value.",
+                }
+            ],
+            "expected_effect": "The missing-user test passes.",
+            "risks": ["Only the missing-user branch changes."],
+            "validation_notes": ["Run the registered tests."],
+        }
+    )
+
+
 def app_for(tmp_path: Path) -> FastAPI:
     return create_app(
         Settings(
@@ -335,6 +378,277 @@ def test_patch_provider_invalid_unknown_and_timeout_fail_safely(tmp_path: Path) 
         ).json()
         assert session["state"] == "FAILED"
         assert (root / "user_service.py").read_bytes() == original
+
+
+def test_malformed_diff_receives_one_repair_then_full_validation(tmp_path: Path) -> None:
+    root = copy_demo(tmp_path)
+    app = app_for(tmp_path)
+    invalid_counts = (
+        "--- a/user_service.py\n"
+        "+++ b/user_service.py\n"
+        "@@ -3,4 +3,5 @@\n"
+        " def get_user_name(user: dict[str, str] | None) -> str:\n"
+        '     """Return the display name for a repository result."""\n'
+        "+    if user is None:\n"
+        '+        return "Unknown"\n'
+        '     return user["name"]\n'
+    )
+    valid = invalid_counts.replace("@@ -3,4 +3,5 @@", "@@ -3,3 +3,5 @@")
+    provider = SequencePatchProvider(
+        [patch_response(invalid_counts), patch_response(valid)]
+    )
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 200
+    assert provider.call_count == 2
+    assert response.json()["workflow"]["validation"]["valid"] is True
+    assert (root / "user_service.py").read_bytes() == original
+
+
+def test_valid_diff_does_not_use_repair(tmp_path: Path) -> None:
+    root = copy_demo(tmp_path)
+    app = app_for(tmp_path)
+    valid = (
+        "--- a/user_service.py\n"
+        "+++ b/user_service.py\n"
+        "@@ -3,3 +3,5 @@\n"
+        " def get_user_name(user: dict[str, str] | None) -> str:\n"
+        '     \"\"\"Return the display name for a repository result.\"\"\"\n'
+        "+    if user is None:\n"
+        '+        return "Unknown"\n'
+        '     return user["name"]\n'
+    )
+    provider = SequencePatchProvider([patch_response(valid)])
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 200
+    assert provider.call_count == 1
+    assert (root / "user_service.py").read_bytes() == original
+
+
+def test_validator_scores_actual_change_instead_of_no_op_diff_churn(
+    tmp_path: Path,
+) -> None:
+    root = copy_demo(tmp_path)
+    app = app_for(tmp_path)
+    churned_but_small = (
+        "--- a/user_service.py\n"
+        "+++ b/user_service.py\n"
+        "@@ -1,5 +1,5 @@\n"
+        ' \"\"\"User-name behavior for the deterministic repair demonstration.\"\"\"\n'
+        " \n"
+        " def get_user_name(user: dict[str, str] | None) -> str:\n"
+        '-    \"\"\"Return the display name for a repository result.\"\"\"\n'
+        '-    return user["name"]\n'
+        '+    \"\"\"Return the display name for a repository result.\"\"\"\n'
+        '+    return user["name"] if user is not None else "Unknown"\n'
+    )
+    provider = SequencePatchProvider([patch_response(churned_but_small)])
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 200
+    assert provider.call_count == 1
+    validation = response.json()["workflow"]["validation"]
+    assert validation["additions"] == 1
+    assert validation["deletions"] == 1
+    assert validation["risk"] == "MEDIUM"
+    assert (root / "user_service.py").read_bytes() == original
+
+
+def test_malformed_diff_gets_only_one_repair_attempt(tmp_path: Path) -> None:
+    root = copy_demo(tmp_path)
+    app = app_for(tmp_path)
+    malformed = patch_response(
+        "--- a/user_service.py\n+++ b/user_service.py\n@@ -3,99 +3,99 @@\n broken\n"
+    )
+    provider = SequencePatchProvider([malformed, malformed, malformed])
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 422
+    assert provider.call_count == 2
+    assert (root / "user_service.py").read_bytes() == original
+
+
+def test_header_path_mismatch_is_repaired_before_validation(tmp_path: Path) -> None:
+    root = copy_demo(tmp_path)
+    app = app_for(tmp_path)
+    body = (
+        "@@ -3,3 +3,5 @@\n"
+        " def get_user_name(user: dict[str, str] | None) -> str:\n"
+        '     \"\"\"Return the display name for a repository result.\"\"\"\n'
+        "+    if user is None:\n"
+        '+        return "Unknown"\n'
+        '     return user["name"]\n'
+    )
+    mismatch = patch_response("--- a/other.py\n+++ b/other.py\n" + body)
+    valid = patch_response("--- a/user_service.py\n+++ b/user_service.py\n" + body)
+    provider = SequencePatchProvider([mismatch, valid])
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 200
+    assert provider.call_count == 2
+    assert (root / "user_service.py").read_bytes() == original
+
+
+def test_invalid_provider_shape_is_bounded_to_one_repair(tmp_path: Path) -> None:
+    root = copy_demo(tmp_path)
+    app = app_for(tmp_path)
+    invalid_shape = json.loads(patch_response("unused"))
+    invalid_shape["title"] = ""
+    malformed = json.dumps(invalid_shape)
+    provider = SequencePatchProvider([malformed, malformed, malformed])
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 422
+    assert provider.call_count == 2
+    assert (root / "user_service.py").read_bytes() == original
+
+
+def test_patch_repair_timeout_returns_504_without_writes(tmp_path: Path) -> None:
+    root = copy_demo(tmp_path)
+    app = create_app(
+        Settings(
+            session_database_path=str(tmp_path / "workflow.db"),
+            llm_provider="mock",
+            ollama_timeout_seconds=0.01,
+        )
+    )
+    malformed = patch_response(
+        "--- a/user_service.py\n+++ b/user_service.py\n@@ -3,99 +3,99 @@\n broken\n"
+    )
+    provider = SequencePatchProvider([malformed, malformed], delays=[0, 0.05])
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 504
+    assert provider.call_count == 1
+    assert (root / "user_service.py").read_bytes() == original
+
+
+def test_repaired_diff_failing_deterministic_validation_gets_no_third_call(
+    tmp_path: Path,
+) -> None:
+    root = copy_demo(tmp_path)
+    app = app_for(tmp_path)
+    context_mismatch = patch_response(
+        "--- a/user_service.py\n"
+        "+++ b/user_service.py\n"
+        "@@ -3,1 +3,1 @@\n"
+        "-this line is not in the source\n"
+        "+replacement\n"
+    )
+    provider = SequencePatchProvider(
+        [context_mismatch, context_mismatch, context_mismatch]
+    )
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 422
+    assert provider.call_count == 2
+    assert (root / "user_service.py").read_bytes() == original
+
+
+def test_unsupplied_file_is_not_sent_to_model_repair(tmp_path: Path) -> None:
+    root = copy_demo(tmp_path)
+    app = app_for(tmp_path)
+    unknown = patch_response(
+        "--- a/invented.py\n+++ b/invented.py\n@@ -1 +1 @@\n-old\n+new\n",
+        "invented.py",
+    )
+    provider = SequencePatchProvider([unknown, patch_response("unused")])
+    app.state.patch_service.provider = provider
+    original = (root / "user_service.py").read_bytes()
+    session_id, analyzed = start_through_analysis(app, root)
+
+    response = anyio.run(
+        request,
+        app,
+        "POST",
+        f"/api/v1/sessions/{session_id}/patches/generate",
+        {"expected_revision": analyzed["session"]["revision"]},
+    )
+
+    assert response.status_code == 422
+    assert provider.call_count == 1
+    assert (root / "user_service.py").read_bytes() == original
 
 
 def test_concurrent_generation_and_double_approval_are_rejected(tmp_path: Path) -> None:

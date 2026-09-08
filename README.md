@@ -4,7 +4,7 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 9 presentation and reliability hardening is implemented over the verified Milestone 8 workflow. Presentation Mode, safe Prepare Demo, provider-transparent judge views, reconnect recovery, and repeatability tooling are available. Java remains `TOOL_MISSING` because Maven is not installed; Ollama is not configured; iQOO Office Kit is not implemented.
+> Current phase: Milestone 10 competition integration is in final verification. Official Ollama 0.33.3 and the local `qwen3-coder:30b` model are installed and health-checked; the real provider passed 5/5 complete Python repair/test/rollback cycles and qualifies as the primary live provider. Java remains `TOOL_MISSING` because Maven is absent. Official sources confirm Office Kit as a product feature, but no verified developer API was found, so PocketPilot does not claim an Office Kit integration.
 
 ## Foundation architecture
 

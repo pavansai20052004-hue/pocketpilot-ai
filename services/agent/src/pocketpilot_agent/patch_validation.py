@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from pocketpilot_agent.models import (
@@ -107,9 +108,14 @@ class PatchValidator:
                     continue
                 output = self.parser.apply(parsed, original)
                 outputs[path] = output
-                additions += parsed.additions
-                deletions += parsed.deletions
-                ratio = (parsed.additions + parsed.deletions) / max(1, len(original.splitlines()))
+                semantic_additions, semantic_deletions = self._semantic_counts(
+                    original, output
+                )
+                additions += semantic_additions
+                deletions += semantic_deletions
+                ratio = (semantic_additions + semantic_deletions) / max(
+                    1, len(original.splitlines())
+                )
                 if ratio > self.max_change_ratio:
                     errors.append(f"Patch changes an excessive portion of {path}.")
                     risk = PatchRisk.HIGH
@@ -143,3 +149,17 @@ class PatchValidator:
             ),
             outputs,
         )
+
+    @staticmethod
+    def _semantic_counts(original: str, output: str) -> tuple[int, int]:
+        additions = 0
+        deletions = 0
+        matcher = SequenceMatcher(
+            None, original.splitlines(), output.splitlines(), autojunk=False
+        )
+        for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
+            if tag == "equal":
+                continue
+            deletions += old_end - old_start
+            additions += new_end - new_start
+        return additions, deletions

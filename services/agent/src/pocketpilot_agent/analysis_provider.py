@@ -114,10 +114,21 @@ class OllamaLLMProvider:
 
     name = "ollama"
 
-    def __init__(self, base_url: str, model: str, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        timeout_seconds: float,
+        context_tokens: int = 8_192,
+        max_output_tokens: int = 2_048,
+        keep_alive: str = "15m",
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_seconds = timeout_seconds
+        self.context_tokens = context_tokens
+        self.max_output_tokens = max_output_tokens
+        self.keep_alive = keep_alive
 
     async def health(self) -> ProviderHealth:
         started = time.perf_counter()
@@ -171,11 +182,16 @@ class OllamaLLMProvider:
                         "model": self.model,
                         "stream": False,
                         "format": "json",
+                        "keep_alive": self.keep_alive,
                         "messages": [
                             {"role": "system", "content": prompt.system},
                             {"role": "user", "content": prompt.user},
                         ],
-                        "options": {"temperature": 0},
+                        "options": {
+                            "temperature": 0,
+                            "num_ctx": self.context_tokens,
+                            "num_predict": self.max_output_tokens,
+                        },
                     },
                 )
                 response.raise_for_status()
@@ -196,12 +212,27 @@ class OllamaLLMProvider:
         return content
 
 
-def build_provider(name: str, base_url: str, model: str, timeout_seconds: float) -> LLMProvider:
+def build_provider(
+    name: str,
+    base_url: str,
+    model: str,
+    timeout_seconds: float,
+    context_tokens: int = 8_192,
+    max_output_tokens: int = 2_048,
+    keep_alive: str = "15m",
+) -> LLMProvider:
     normalized = name.strip().casefold()
     if normalized == "mock":
         return MockLLMProvider()
     if normalized == "ollama":
-        return OllamaLLMProvider(base_url, model, timeout_seconds)
+        return OllamaLLMProvider(
+            base_url,
+            model,
+            timeout_seconds,
+            context_tokens,
+            max_output_tokens,
+            keep_alive,
+        )
     raise ValueError("POCKETPILOT_ANALYSIS_PROVIDER must be 'mock' or 'ollama'.")
 
 
