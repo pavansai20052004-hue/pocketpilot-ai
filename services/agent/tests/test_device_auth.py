@@ -110,6 +110,21 @@ def test_lan_http_requires_valid_token_and_revocation_is_immediate(tmp_path: Pat
     assert forbidden_admin.status_code == 403
 
 
+def test_pairing_code_uses_configured_advertised_host(tmp_path: Path) -> None:
+    app = create_app(
+        Settings(
+            session_database_path=str(tmp_path / "sessions.db"),
+            advertised_host="192.168.50.12",
+        )
+    )
+
+    with TestClient(app) as laptop:
+        pairing = laptop.post("/api/v1/devices/pairing-code")
+
+    assert pairing.status_code == 200
+    assert pairing.json()["agent_address"] == "192.168.50.12:8000"
+
+
 def test_websocket_rejects_unauthorized_and_accepts_authorized_phone(tmp_path: Path) -> None:
     app = app_for(tmp_path)
     with TestClient(app) as laptop:

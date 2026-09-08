@@ -1,9 +1,13 @@
 node_modules/
 dist/
+target/
 .expo/
 .vite/
 coverage/
 *.tsbuildinfo
+*.apk
+*.aab
+.vercel/
 
 .venv/
 __pycache__/

@@ -42,10 +42,12 @@ def _require_local(request: Request) -> None:
 
 def _agent_address(request: Request) -> str:
     settings: Settings = request.app.state.settings
-    try:
-        address = socket.gethostbyname(socket.gethostname())
-    except OSError:
-        address = "127.0.0.1"
+    address = settings.advertised_host
+    if not address:
+        try:
+            address = socket.gethostbyname(socket.gethostname())
+        except OSError:
+            address = "127.0.0.1"
     return f"{address}:{settings.agent_port}"
 
 

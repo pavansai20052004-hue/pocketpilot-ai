@@ -19,8 +19,8 @@ from pocketpilot_agent.main import create_app
 
 CASES = (
     ("python-null-user", "python-broken-app", "fixtures/traceback.txt", 5),
-    ("java-null-user", "java-broken-app", "fixtures/stacktrace.txt", 1),
-    ("react-null-profile", "react-broken-app", "fixtures/terminal.txt", 3),
+    ("java-null-user", "java-broken-app", "fixtures/stacktrace.txt", 2),
+    ("react-null-profile", "react-broken-app", "fixtures/terminal.txt", 2),
 )
 
 

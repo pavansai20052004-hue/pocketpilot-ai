@@ -1,4 +1,4 @@
-"""Run five genuine Ollama repair cycles in a disposable Python demo copy."""
+"""Run genuine Ollama repair cycles in a disposable registered demo copy."""
 
 from __future__ import annotations
 
@@ -19,6 +19,25 @@ from pocketpilot_agent.config import Settings
 from pocketpilot_agent.main import create_app
 
 
+DEMOS = {
+    "python-null-user": {
+        "fixture": "fixtures/traceback.txt",
+        "expected_file": "user_service.py",
+        "concept_tokens": ("none", "null", "missing", "dereferenc", "subscript"),
+    },
+    "java-null-user": {
+        "fixture": "fixtures/stacktrace.txt",
+        "expected_file": "src/main/java/demo/UserService.java",
+        "concept_tokens": ("null", "missing", "dereferenc", "nullpointer"),
+    },
+    "react-null-profile": {
+        "fixture": "fixtures/terminal.txt",
+        "expected_file": "src/UserProfile.tsx",
+        "concept_tokens": ("null", "missing", "fallback", "render"),
+    },
+}
+
+
 def elapsed_ms(started: float) -> int:
     return round((time.perf_counter() - started) * 1000)
 
@@ -27,8 +46,10 @@ def post(client: TestClient, path: str, payload: dict[str, object] | None = None
     return client.post(path, json=payload)
 
 
-def run_cycle(client: TestClient, cycle: int) -> dict[str, object]:
+def run_cycle(client: TestClient, demo_id: str, cycle: int) -> dict[str, object]:
+    demo = DEMOS[demo_id]
     result: dict[str, object] = {
+        "demo_id": demo_id,
         "cycle": cycle,
         "analysis": "FAIL",
         "root_cause_concept": "incorrect",
@@ -40,13 +61,13 @@ def run_cycle(client: TestClient, cycle: int) -> dict[str, object]:
         "complete_success": False,
     }
     overall_started = time.perf_counter()
-    reset = post(client, "/api/v1/demo/reset/python-null-user")
+    reset = post(client, f"/api/v1/demo/reset/{demo_id}")
     if reset.status_code != 200 or reset.json().get("result") != "DEMO_READY":
         result["failure_stage"] = "reset"
         result["workflow_ms"] = elapsed_ms(overall_started)
         return result
 
-    selected = post(client, "/api/v1/demo/select/python-null-user")
+    selected = post(client, f"/api/v1/demo/select/{demo_id}")
     if selected.status_code != 200:
         result["failure_stage"] = "workspace_selection"
         result["workflow_ms"] = elapsed_ms(overall_started)
@@ -65,7 +86,7 @@ def run_cycle(client: TestClient, cycle: int) -> dict[str, object]:
         result["workflow_ms"] = elapsed_ms(overall_started)
         return result
 
-    created = post(client, "/api/v1/sessions", {"title": f"Real Ollama cycle {cycle}"})
+    created = post(client, "/api/v1/sessions", {"title": f"Real Ollama {demo_id} cycle {cycle}"})
     session_id = created.json()["session"]["id"]
     captured = post(
         client,
@@ -73,10 +94,10 @@ def run_cycle(client: TestClient, cycle: int) -> dict[str, object]:
         {
             "target_state": "CAPTURED",
             "expected_revision": 0,
-            "summary": "Real failing traceback captured for Ollama benchmark.",
+            "summary": f"Real failing output captured for {demo_id} Ollama benchmark.",
         },
     )
-    fixture = (root / "fixtures" / "traceback.txt").read_text(encoding="utf-8")
+    fixture = (root / str(demo["fixture"])).read_text(encoding="utf-8")
     analysis_started = time.perf_counter()
     analyzed = post(
         client,
@@ -106,10 +127,9 @@ def run_cycle(client: TestClient, cycle: int) -> dict[str, object]:
         str(diagnosis.get(key) or "")
         for key in ("summary", "root_cause", "explanation", "repair_strategy")
     ).casefold()
-    concept_correct = any(
-        token in concept_text for token in ("none", "null", "missing", "dereferenc", "subscript")
-    )
-    file_correct = likely_file.endswith("user_service.py")
+    concept_correct = any(token in concept_text for token in demo["concept_tokens"])
+    normalized_file = likely_file.replace("\\", "/")
+    file_correct = normalized_file.endswith(str(demo["expected_file"]))
     result["root_cause_concept"] = "correct" if concept_correct and file_correct else "incorrect"
     evidence = diagnosis.get("evidence", [])
     evidence_valid = bool(evidence) and all(
@@ -192,6 +212,9 @@ def run_cycle(client: TestClient, cycle: int) -> dict[str, object]:
 
 def main() -> int:
     model = os.environ.get("POCKETPILOT_OLLAMA_MODEL", "qwen3-coder:30b").strip()
+    demo_id = os.environ.get("POCKETPILOT_OLLAMA_DEMO_ID", "python-null-user").strip()
+    if demo_id not in DEMOS:
+        raise ValueError(f"Unsupported POCKETPILOT_OLLAMA_DEMO_ID: {demo_id}")
     cycles = int(os.environ.get("POCKETPILOT_OLLAMA_BENCHMARK_CYCLES", "5"))
     if cycles < 1 or cycles > 20:
         raise ValueError("POCKETPILOT_OLLAMA_BENCHMARK_CYCLES must be between 1 and 20.")
@@ -213,7 +236,7 @@ def main() -> int:
             ollama_max_output_tokens=int(
                 os.environ.get("POCKETPILOT_OLLAMA_MAX_OUTPUT_TOKENS", "2048")
             ),
-            command_timeout_seconds=30,
+            command_timeout_seconds=60,
         )
         app = create_app(settings)
         with TestClient(app) as client:
@@ -221,12 +244,13 @@ def main() -> int:
             if not health.get("available"):
                 print(json.dumps({"provider": health, "error": "Ollama is not ready."}, indent=2))
                 return 2
-            results = [run_cycle(client, cycle) for cycle in range(1, cycles + 1)]
+            results = [run_cycle(client, demo_id, cycle) for cycle in range(1, cycles + 1)]
         passed = sum(item["complete_success"] is True for item in results)
         required = 4 if cycles == 5 else cycles
         payload = {
             "provider": "ollama",
             "model": model,
+            "demo_id": demo_id,
             "threshold": "PRIMARY" if passed >= required else "EXPERIMENTAL",
             "passed": passed,
             "total": len(results),

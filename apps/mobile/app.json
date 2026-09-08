@@ -2,11 +2,22 @@
   "expo": {
     "name": "PocketPilot AI",
     "slug": "pocketpilot-ai",
-    "version": "0.1.0",
+    "version": "1.0.0",
+    "icon": "./assets/pocketpilot-icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/pocketpilot-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#050806"
+    },
     "android": {
       "package": "ai.pocketpilot.mobile",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/pocketpilot-icon.png",
+        "backgroundColor": "#050806"
+      },
       "permissions": [
         "android.permission.CAMERA"
       ]

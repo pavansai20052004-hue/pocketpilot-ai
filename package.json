@@ -19,9 +19,11 @@
     "demo:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/preflight-demo.ps1",
     "demo:benchmark": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/benchmark-demo.ps1",
     "demo:benchmark:ollama": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/benchmark-ollama.ps1",
-    "build": "npm run build --workspace=@pocketpilot/shared-types && npm run build --workspace=@pocketpilot/desktop-web && npm run export:web --workspace=@pocketpilot/mobile",
+    "pocketpilot:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-pocketpilot.ps1",
+    "pocketpilot:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-pocketpilot.ps1",
+    "build": "npm run build --workspace=@pocketpilot/shared-types && npm run build --workspace=@pocketpilot/desktop-web && npm run export:web --workspace=@pocketpilot/mobile && npm run build --workspace=sites-project",
     "typecheck": "npm run build --workspace=@pocketpilot/shared-types && npm run typecheck --workspaces --if-present",
-    "lint": "eslint apps packages",
+    "lint": "eslint apps/desktop-web apps/mobile packages && npm run lint --workspace=sites-project",
     "test": "npm run test --workspaces --if-present",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build"
   },

@@ -200,16 +200,24 @@ class DemoService:
         )
 
     async def preflight(
-        self, *, agent_reachable: bool = True, check_workspace: bool = True
+        self, *, agent_reachable: bool | None = True, check_workspace: bool = True
     ) -> PreDemoCheckResult:
         demos = self.list()
         provider = await self.provider.health()
         checks = [
             PreDemoCheck(
                 name="Agent",
-                status="READY" if agent_reachable else "NOT_READY",
+                status=(
+                    "NOT_CHECKED"
+                    if agent_reachable is None
+                    else "READY"
+                    if agent_reachable
+                    else "NOT_READY"
+                ),
                 detail=(
-                    "FastAPI preflight endpoint is reachable."
+                    "Agent reachability is checked after startup."
+                    if agent_reachable is None
+                    else "FastAPI preflight endpoint is reachable."
                     if agent_reachable
                     else "FastAPI health endpoint is not reachable on the configured port."
                 ),

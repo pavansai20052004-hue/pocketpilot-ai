@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     agent_host: str = "127.0.0.1"
     agent_port: int = 8000
+    advertised_host: str | None = None
     log_level: str = "info"
     environment: str = "development"
     max_files: int = 20_000
