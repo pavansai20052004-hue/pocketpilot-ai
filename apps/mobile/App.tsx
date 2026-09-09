@@ -1,13 +1,15 @@
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   AppState,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
+  StatusBar as NativeStatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -36,6 +38,7 @@ import { getProviderHealth, getWorkspace } from './src/api/workspaces';
 import { clearConnection, loadConnection, saveConnection, type StoredConnection } from './src/auth/secureStorage';
 import { LocalWebSocketBridge, type DeviceBridge } from './src/bridge/DeviceBridge';
 import { initialWorkflowState, pipelineStatus, workflowReducer, type WorkflowState } from './src/state/workflow';
+import { resolveWorkPhase, workPhaseContent, type WorkPhase } from './src/ui/workProgress';
 import { VisionScanner } from './src/vision/VisionScanner';
 import { VoiceActionExecutor } from './src/voice/actionExecutor';
 import type { SpeechCapability, VoiceExecutionResult, VoiceIntent, VoiceSessionContext } from './src/voice/contracts';
@@ -49,6 +52,8 @@ import {
 import { VoiceSheet } from './src/voice/VoiceSheet';
 
 type Tab = 'HOME' | 'DEBUG' | 'SESSIONS' | 'SETTINGS';
+
+const ANDROID_STATUS_BAR_INSET = Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 0;
 const DEMO_ERROR = `Traceback (most recent call last):
   File "user_service.py", line 5, in get_user_name
     return user["name"]
@@ -421,7 +426,7 @@ function ConnectedApp({ connection, onDisconnect }: { connection: StoredConnecti
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
+      <ExpoStatusBar style="light" />
       <View style={styles.app}>
         <Header connection={state.connection} presentationMode={demoMode} />
         {error !== null && <ErrorBanner message={error} onRetry={() => void refreshDashboard()} />}
@@ -515,7 +520,7 @@ function PairingScreen({ onPaired }: { onPaired: (connection: StoredConnection) 
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
+      <ExpoStatusBar style="light" />
       <ScrollView contentContainerStyle={styles.pairingPage} keyboardShouldPersistTaps="handled">
         <Brand />
         <View style={styles.pairingHero}>
@@ -582,6 +587,7 @@ function DebugScreen(props: {
   onRetry: () => void; onSpeak: () => void; onStart: () => void; patch: PatchWorkflowView | null; session: DebugSession | null;
   steps: ReadonlyArray<{ label: string; complete: boolean; active: boolean }>; validationCommand: string; workspaceReady: boolean;
 }) {
+  const workPhase = resolveWorkPhase(props.busy, props.session);
   if (props.session === null) {
     return (
       <ScrollView contentContainerStyle={styles.scrollPage} keyboardShouldPersistTaps="handled">
@@ -591,6 +597,7 @@ function DebugScreen(props: {
         <Field accessibilityLabel="Optional language hint" onChangeText={props.onChangeLanguage} placeholder="Language hint (optional)" value={props.languageHint} />
         {props.demoMode && <SecondaryButton label="LOAD DEMO ERROR" onPress={props.onLoadDemo} />}
         <PrimaryButton accessibilityLabel="Analyze error" disabled={props.busy !== null || !props.workspaceReady} label={props.busy === 'analyze' ? 'ANALYZING…' : 'ANALYZE'} onPress={props.onStart} />
+        {workPhase !== null && <WorkInProgress phase={workPhase} />}
       </ScrollView>
     );
   }
@@ -598,6 +605,7 @@ function DebugScreen(props: {
     <ScrollView contentContainerStyle={styles.scrollPage}>
       <View style={styles.titleRow}><View style={styles.titleCopy}><Eyebrow>LIVE DEBUG SESSION</Eyebrow><Text style={styles.screenTitle}>{sessionDisplayTitle(props.session, props.analysis)}</Text></View><View style={styles.sessionActions}><Pressable accessibilityLabel="Speak a contextual command" accessibilityRole="button" onPress={props.onSpeak} style={styles.voiceMini}><Text style={styles.voiceMiniText}>●</Text></Pressable><StateBadge state={props.session.state} /></View></View>
       <Pipeline steps={props.steps} />
+      {workPhase !== null && <WorkInProgress phase={workPhase} />}
       {props.analysis !== null && <RootCause analysis={props.analysis} busy={props.busy !== null} canGenerate={props.session.state === 'ROOT_CAUSE_FOUND'} onGenerate={props.onGenerate} />}
       {props.session.state === 'ROOT_CAUSE_FOUND' && props.patch === null && props.busy === null && <SecondaryButton label="REVIEW ERROR TEXT" onPress={props.onReset} />}
       {props.session.state === 'FAILED' && props.patch === null && <Card>
@@ -614,6 +622,58 @@ function DebugScreen(props: {
 
 function Pipeline({ steps }: { steps: ReadonlyArray<{ label: string; complete: boolean; active: boolean }> }) {
   return <Card><Eyebrow>PIPELINE</Eyebrow>{steps.map((step) => <View key={step.label} style={styles.pipelineRow}><Text style={[styles.pipelineIcon, step.complete && styles.successText, step.active && styles.activeText]}>{step.complete ? '✓' : step.active ? '●' : '○'}</Text><Text style={[styles.pipelineLabel, (step.complete || step.active) && styles.brightText]}>{step.label}</Text></View>)}</Card>;
+}
+
+function WorkInProgress({ phase }: { phase: WorkPhase }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+  const spin = useRef(new Animated.Value(0)).current;
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [messageIndex, setMessageIndex] = useState(0);
+  const content = workPhaseContent(phase);
+
+  useEffect(() => {
+    pulse.setValue(0);
+    spin.setValue(0);
+    setElapsedSeconds(0);
+    setMessageIndex(0);
+
+    const pulseAnimation = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { duration: 950, toValue: 1, useNativeDriver: true }),
+      Animated.timing(pulse, { duration: 950, toValue: 0, useNativeDriver: true }),
+    ]));
+    const spinAnimation = Animated.loop(Animated.timing(spin, { duration: 4400, toValue: 1, useNativeDriver: true }));
+    const elapsedTimer = setInterval(() => setElapsedSeconds((value) => value + 1), 1000);
+    const messageTimer = setInterval(() => setMessageIndex((value) => (value + 1) % content.messages.length), 4500);
+
+    pulseAnimation.start();
+    spinAnimation.start();
+    return () => {
+      pulseAnimation.stop();
+      spinAnimation.stop();
+      clearInterval(elapsedTimer);
+      clearInterval(messageTimer);
+    };
+  }, [content.messages.length, phase, pulse, spin]);
+
+  const rotation = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const coreScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1.08] });
+  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.22, 0.72] });
+
+  return (
+    <View accessibilityLabel={`${content.title}. ${content.messages[messageIndex]}`} accessibilityRole="progressbar" accessibilityValue={{ text: `${elapsedSeconds} seconds elapsed` }} style={styles.workCard}>
+      <View style={styles.workVisual}>
+        <Animated.View style={[styles.workHalo, { opacity: haloOpacity, transform: [{ scale: coreScale }] }]} />
+        <Animated.View style={[styles.workOrbit, { transform: [{ rotate: rotation }] }]}><View style={styles.workSatellite} /></Animated.View>
+        <Animated.View style={[styles.workCore, { transform: [{ scale: coreScale }] }]}><Text style={styles.workCoreText}>{content.icon}</Text></Animated.View>
+      </View>
+      <View style={styles.workCopy}>
+        <Text style={styles.workEyebrow}>{content.eyebrow}</Text>
+        <Text style={styles.workTitle}>{content.title}</Text>
+        <Text accessibilityLiveRegion="polite" style={styles.workMessage}>{content.messages[messageIndex]}</Text>
+        <View style={styles.workMeta}><View style={styles.workLiveDot} /><Text style={styles.workElapsed}>{elapsedSeconds}s elapsed · {content.footer}</Text></View>
+      </View>
+    </View>
+  );
 }
 
 function RootCause({ analysis, busy, canGenerate, onGenerate }: { analysis: AnalysisRecord; busy: boolean; canGenerate: boolean; onGenerate: () => void }) {
@@ -649,7 +709,7 @@ function SettingsScreen({ connection, demoMode, onDemoMode, onDisconnect, speech
   return <ScrollView contentContainerStyle={styles.scrollPage}><Eyebrow>SETTINGS</Eyebrow><Text style={styles.screenTitle}>Device connection</Text><Card><Info label="LAPTOP ADDRESS" value={connection.serverAddress} /><Info label="DEVICE" value={connection.displayName} /><Info label="DEVICE ID" value={connection.deviceId} /><Text style={styles.securityCopy}>The token is stored in Android secure storage. Source code, secrets, and rollback snapshots remain on the laptop.</Text><SecondaryButton label="DISCONNECT PHONE" onPress={onDisconnect} /></Card><Pressable accessibilityLabel="Toggle presentation mode" accessibilityRole="switch" accessibilityState={{ checked: demoMode }} onPress={() => onDemoMode(!demoMode)} style={styles.settingRow}><View style={styles.titleCopy}><Text style={styles.settingTitle}>Presentation Mode</Text><Text style={styles.cardCopy}>Prioritizes judge-facing states while keeping every backend action and safety check real.</Text></View><Text style={[styles.toggle, demoMode && styles.toggleOn]}>{demoMode ? 'ON' : 'OFF'}</Text></Pressable><Card><Eyebrow>VOICE</Eyebrow><Text style={styles.cardTitle}>Push-to-talk commands</Text><Info label="MICROPHONE / RECOGNITION" value={speechCapability === null ? 'Open Speak Command to detect' : speechCapability.available ? 'READY' : 'UNAVAILABLE'} /><Info label="LOCALE" value={speechCapability?.locale ?? 'English (India)'} /><Info label="RECOGNITION SERVICE" value={speechCapability?.provider_name ?? 'Not detected'} /><Info label="OFFLINE SPEECH" value={speechCapability?.offline_verified ? 'VERIFIED' : speechCapability?.offline_supported ? 'SUPPORTED · NOT VERIFIED' : 'NOT VERIFIED / UNAVAILABLE'} /><Info label="TEXT TO SPEECH" value={ttsAvailable ? 'READY' : 'NOT DETECTED'} /><Text style={styles.securityCopy}>PocketPilot does not retain microphone audio. The selected Android speech service may use a network unless on-device recognition is verified.</Text></Card><Card><Eyebrow>VISION PRIVACY</Eyebrow><Text style={styles.cardTitle}>On-device OCR</Text><Text style={styles.cardCopy}>Camera and gallery images remain on the phone. Only text you inspect and confirm is sent to the paired laptop.</Text></Card></ScrollView>;
 }
 
-function Header({ connection, presentationMode }: { connection: string; presentationMode: boolean }) { return <View style={styles.header}><Brand />{presentationMode && <Text style={styles.presentationPill}>PRESENTATION</Text>}<View style={styles.connectionPill}><StatusDot good={connection === 'CONNECTED'} /><Text style={styles.connectionText}>{connection}</Text></View></View>; }
+function Header({ connection, presentationMode }: { connection: string; presentationMode: boolean }) { return <View style={styles.header}><Brand /><View style={styles.headerStatus}>{presentationMode && <Text numberOfLines={1} style={styles.presentationPill}>PRESENTATION</Text>}<View style={styles.connectionPill}><StatusDot good={connection === 'CONNECTED'} /><Text style={styles.connectionText}>{connection}</Text></View></View></View>; }
 function Brand() { return <View style={styles.brand}><View style={styles.mark}><Text style={styles.markText}>P</Text></View><View><Text style={styles.brandName}>POCKETPILOT</Text><Text style={styles.brandSub}>PHONE CONTROL</Text></View></View>; }
 function TabBar({ active, onSelect }: { active: Tab; onSelect: (tab: Tab) => void }) { const tabs: ReadonlyArray<[Tab, string]> = [['HOME', '⌂'], ['DEBUG', '⌘'], ['SESSIONS', '≡'], ['SETTINGS', '⚙']]; return <View style={styles.tabBar}>{tabs.map(([tab, icon]) => <Pressable accessibilityLabel={tab} key={tab} onPress={() => onSelect(tab)} style={styles.tab}><Text style={[styles.tabIcon, active === tab && styles.tabActive]}>{icon}</Text><Text style={[styles.tabLabel, active === tab && styles.tabActive]}>{tab}</Text></Pressable>)}</View>; }
 function Card({ children, accent = false }: { children: React.ReactNode; accent?: boolean }) { return <View style={[styles.card, accent && styles.cardAccent]}>{children}</View>; }
@@ -664,7 +724,7 @@ function StatusCard({ label, value, good }: { label: string; value: string; good
 function Info({ label, value }: { label: string; value: string }) { return <View style={styles.info}><Eyebrow>{label}</Eyebrow><Text style={styles.infoValue}>{value}</Text></View>; }
 function Metric({ label, value }: { label: string; value: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>; }
 function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) { return <View style={styles.errorBanner}><View style={styles.errorCopy}><Text style={styles.errorTitle}>CONNECTION OR REQUEST ISSUE</Text><Text style={styles.errorMessage}>{message}</Text></View><Pressable accessibilityLabel="Try again" accessibilityRole="button" onPress={onRetry} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}><Text style={styles.retry}>TRY AGAIN</Text></Pressable></View>; }
-function Splash() { return <SafeAreaView style={styles.splash}><StatusBar style="light" /><Brand /><ActivityIndicator color="#C8FF3D" size="large" /></SafeAreaView>; }
+function Splash() { return <SafeAreaView style={styles.splash}><ExpoStatusBar style="light" /><Brand /><ActivityIndicator color="#C8FF3D" size="large" /></SafeAreaView>; }
 
 function handleError(error: unknown, setError: (message: string) => void, onUnauthorized?: () => void): void {
   if (error instanceof ApiError && error.status === 401) {
@@ -689,8 +749,8 @@ function providerLabelForPatch(patch: PatchWorkflowView): string { return patch.
 function testCount(patch: PatchWorkflowView): string { const output = `${patch.test_result?.command?.stdout ?? ''}\n${patch.test_result?.command?.stderr ?? ''}`; const match = output.match(/(\d+)\s+passed/i); return match === null ? 'PASSED' : `${match[1]} / ${match[1]}`; }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#070A0F' }, app: { flex: 1, backgroundColor: '#070A0F' }, content: { flex: 1 }, splash: { flex: 1, padding: 28, justifyContent: 'space-between', backgroundColor: '#070A0F' },
-  header: { minHeight: 68, paddingHorizontal: 20, borderBottomColor: '#202720', borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, brand: { flexDirection: 'row', alignItems: 'center', gap: 10 }, mark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#C8FF3D', alignItems: 'center', justifyContent: 'center' }, markText: { color: '#090D08', fontWeight: '900', fontSize: 18 }, brandName: { color: '#F4F7F1', fontSize: 12, letterSpacing: 1.5, fontWeight: '900' }, brandSub: { color: '#60695D', fontSize: 8, letterSpacing: 1.1, marginTop: 2 },
+  safeArea: { flex: 1, paddingTop: ANDROID_STATUS_BAR_INSET, backgroundColor: '#070A0F' }, app: { flex: 1, backgroundColor: '#070A0F' }, content: { flex: 1 }, splash: { flex: 1, padding: 28, paddingTop: 28 + ANDROID_STATUS_BAR_INSET, justifyContent: 'space-between', backgroundColor: '#070A0F' },
+  header: { minHeight: 80, paddingHorizontal: 18, paddingVertical: 9, borderBottomColor: '#202720', borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, headerStatus: { flexShrink: 0, alignItems: 'flex-end', gap: 5 }, brand: { flexDirection: 'row', alignItems: 'center', gap: 9, flexShrink: 1 }, mark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#C8FF3D', alignItems: 'center', justifyContent: 'center' }, markText: { color: '#090D08', fontWeight: '900', fontSize: 18 }, brandName: { color: '#F4F7F1', fontSize: 12, letterSpacing: 1.35, fontWeight: '900' }, brandSub: { color: '#60695D', fontSize: 8, letterSpacing: 1.1, marginTop: 2 },
   connectionPill: { minHeight: 34, paddingHorizontal: 11, borderWidth: 1, borderColor: '#2A3327', borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 7 }, connectionText: { color: '#9BA596', fontSize: 9, fontWeight: '800' }, dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#596058' }, dotGood: { backgroundColor: '#C8FF3D' },
   pairingPage: { flexGrow: 1, padding: 24, backgroundColor: '#070A0F' }, pairingHero: { marginTop: 62, marginBottom: 32 }, heroTitle: { color: '#F4F7F1', fontSize: 47, lineHeight: 49, letterSpacing: -2.2, fontWeight: '800' }, heroCopy: { color: '#899287', fontSize: 15, lineHeight: 23, marginTop: 16 }, helper: { color: '#687166', fontSize: 12, lineHeight: 19, textAlign: 'center', margin: 20 },
   scrollPage: { padding: 20, paddingBottom: 42, gap: 14 }, homeTitle: { color: '#F4F7F1', fontSize: 43, lineHeight: 46, letterSpacing: -2, fontWeight: '800', marginVertical: 20 }, screenTitle: { color: '#F4F7F1', fontSize: 29, lineHeight: 34, letterSpacing: -1, fontWeight: '800', marginTop: 7, marginBottom: 10 }, titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }, titleCopy: { flex: 1 }, sessionActions: { alignItems: 'flex-end', gap: 8 }, voiceMini: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#526636', backgroundColor: '#162010', alignItems: 'center', justifyContent: 'center' }, voiceMiniText: { color: '#C8FF3D', fontSize: 18 },
@@ -699,6 +759,7 @@ const styles = StyleSheet.create({
   primaryButton: { minHeight: 54, borderRadius: 13, backgroundColor: '#C8FF3D', alignItems: 'center', justifyContent: 'center', marginTop: 2 }, primaryText: { color: '#0B1008', fontSize: 12, fontWeight: '900', letterSpacing: 1 }, secondaryButton: { minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: '#465043', alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: '#CCD4C8', fontSize: 11, fontWeight: '800', letterSpacing: 1 }, disabled: { opacity: 0.42 }, pressed: { transform: [{ scale: 0.99 }] },
   actionGrid: { gap: 10 }, actionCard: { minHeight: 104, borderRadius: 17, borderWidth: 1, borderColor: '#30402A', backgroundColor: '#11180F', padding: 16, justifyContent: 'center' }, voiceAction: { borderColor: '#637E35', backgroundColor: '#14200F' }, actionIcon: { color: '#C8FF3D', fontSize: 20, marginBottom: 7 }, actionTitle: { color: '#EEF2EA', fontSize: 12, letterSpacing: 1, fontWeight: '900' }, actionSubtitle: { color: '#727B6E', fontSize: 11, marginTop: 4 },
   pipelineRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#222A20' }, pipelineIcon: { color: '#586056', width: 26, fontSize: 15 }, pipelineLabel: { color: '#697266', fontSize: 12 }, brightText: { color: '#D3DACF' }, successText: { color: '#C8FF3D' }, activeText: { color: '#F0C96B' }, failureText: { color: '#FF8B75' },
+  workCard: { minHeight: 166, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 17, padding: 18, borderWidth: 1, borderColor: '#526B2E', borderRadius: 20, backgroundColor: '#10180E' }, workVisual: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center' }, workHalo: { position: 'absolute', width: 72, height: 72, borderRadius: 36, backgroundColor: '#C8FF3D' }, workOrbit: { position: 'absolute', width: 94, height: 94, borderRadius: 47, borderWidth: 1, borderColor: '#6C8A3B' }, workSatellite: { position: 'absolute', top: -4, left: 40, width: 9, height: 9, borderRadius: 5, backgroundColor: '#F0C96B', shadowColor: '#F0C96B', shadowOpacity: .65, shadowRadius: 6 }, workCore: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#C8FF3D', backgroundColor: '#0A1008' }, workCoreText: { color: '#C8FF3D', fontSize: 15, fontWeight: '900', letterSpacing: .6 }, workCopy: { flex: 1, gap: 7 }, workEyebrow: { color: '#C8FF3D', fontSize: 8, fontWeight: '900', letterSpacing: 1.25 }, workTitle: { color: '#F2F6EE', fontSize: 18, lineHeight: 22, fontWeight: '800' }, workMessage: { minHeight: 36, color: '#A0AA9B', fontSize: 11, lineHeight: 17 }, workMeta: { flexDirection: 'row', alignItems: 'center', gap: 7 }, workLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C8FF3D' }, workElapsed: { flex: 1, color: '#798474', fontSize: 9, lineHeight: 13 },
   badge: { overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 8, fontSize: 8, fontWeight: '900', letterSpacing: .7 }, badgeGood: { backgroundColor: '#203118', color: '#C8FF3D' }, badgeWarn: { backgroundColor: '#352B15', color: '#F0C96B' }, badgeBad: { backgroundColor: '#351B17', color: '#FF8B75' },
   info: { gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#252D23' }, infoValue: { color: '#AEB8AA', fontSize: 12, lineHeight: 19 }, evidence: { borderRadius: 10, backgroundColor: '#080C09', padding: 12, gap: 6 }, codeText: { color: '#C8FF3D', fontSize: 11, fontFamily: 'monospace' }, evidenceText: { color: '#808A7C', fontSize: 11, lineHeight: 17 },
   metrics: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#273024', paddingVertical: 13 }, metric: { flex: 1 }, metricValue: { color: '#E9EEE5', fontSize: 13, fontWeight: '800' }, metricLabel: { color: '#657060', fontSize: 8, marginTop: 4, letterSpacing: 1 }, successActions: { gap: 9 },
