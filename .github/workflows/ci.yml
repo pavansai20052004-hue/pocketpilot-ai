@@ -26,6 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The agent integration suite exercises the registered React demo as well
+      # as the Python demo, so its isolated CI job needs the workspace packages.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
