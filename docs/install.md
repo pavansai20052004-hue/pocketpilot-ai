@@ -73,9 +73,9 @@ npx eas-cli build --platform android --profile presentation
 
 Install the resulting APK on the iQOO phone. Do not start Metro. Put phone and laptop on the same trusted private Wi-Fi or hotspot, run the one-command laptop startup, then pair with the printed address and code.
 
-Release build 2: `https://expo.dev/artifacts/eas/I-2_eYoybP3qSMHcQ9bDllWy3_eqehd19m8TtTp88SQ.apk`. EAS build ID: `c9e3bde3-be24-44bf-a206-a1d37f3f6d38`. APK SHA-256: `3C997DA99EB80D7F98AC0DA25717B1BAACD59C8C7B28E80A15328D9A1B51BD49`.
+Current release build 3: `https://expo.dev/artifacts/eas/087z2MHe_7IteykabX6xzyQzNaJR-5egz_JUfeF2nug.apk`. EAS build ID: `650b5267-6f98-417f-8b26-7b8a57ce5e61`. APK SHA-256: `E88EAB79B9ECD74B2E5BFA9C95D7B19D2B2126BE377F943281181CCD713BCBEC`.
 
-The release app identifier is `ai.pocketpilot.mobile`, version `1.0.0`, Android version code `2`. Camera and microphone permissions are required for the vision and voice features. Voice audio is handled by Android's selected speech service and may use the internet; PocketPilot stores only the transcript.
+The release app identifier is `ai.pocketpilot.mobile`, version `1.0.1`, Android version code `3`. Camera and microphone permissions are required for the vision and voice features. Voice audio is handled by Android's selected speech service and may use the internet; PocketPilot stores only the transcript.
 
 ## Verification commands
 
