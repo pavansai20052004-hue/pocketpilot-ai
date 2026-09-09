@@ -14,4 +14,4 @@ The missing repository lookup is dereferenced in `UserService.displayName`. The 
 
 Expected analysis: the repository may return null and the service does not validate it. The one-file patch returns `"Unknown"` before calling `user.name()`. Real Maven tests must then pass; rollback must restore the exact broken source and the exception.
 
-Reset uses only the registered fixture file. On the current laptop Java 21 is installed but Maven is missing, so live Java validation and timing are `TOOL_MISSING`, not claimed as ready. Java is backup 2 until preflight reports READY.
+Reset uses only the registered fixture file. On the release laptop Java 21 and the SHA-512-verified Apache Maven 3.9.16 distribution are installed. The Java scenario completed two deterministic repair/test/rollback cycles with real Maven/JUnit execution and is now `READY`. A real `qwen3-coder:30b` attempt correctly diagnosed the defect and cited the source evidence, but its malformed patch was safely rejected after the one bounded repair attempt; therefore Java remains backup 2 behind the more reliable Python and React flows.

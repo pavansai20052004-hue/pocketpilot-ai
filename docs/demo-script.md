@@ -1,5 +1,7 @@
 # PocketPilot presentation script
 
+Start the release laptop with `npm run pocketpilot:start`, install/open the standalone presentation APK, and keep Metro stopped. Use the fresh address and pairing code printed by the launcher. The public showcase is presentation-only and is not the control application.
+
 ## 30-second pitch
 
 Developers lose focus moving between a visible error, search, AI, source code, and tests. PocketPilot turns the phone into a repository-aware debugging assistant: scan an error, ask for a fix by voice, review a controlled patch, approve it, and see real tests pass. Camera capture, closed voice actions, local-provider support, human approval, and conflict-safe rollback make the workflow useful without handing an AI unrestricted access.
@@ -42,3 +44,5 @@ Skip spoken explanations, architecture, and rollback. If camera or speech is slo
 ## Verified rehearsal result
 
 On 2026-09-08 the physical iQOO presentation run completed from **GO** to **FIX VERIFIED** in 42.3 seconds. The backend recorded a distinct successful session with 71 ms confirmed-text analysis, 31 ms patch generation/validation, and 829 ms approved apply plus real pytest. This is environment-specific evidence, not a promise of identical venue timing.
+
+On 2026-09-09 the standalone presentation APK completed the real-model camera hero with Metro stopped. `qwen3-coder:30b` analysis took 65.140 seconds, patch generation 118.284 seconds, apply 2 milliseconds, and real pytest 675 milliseconds. System processing was approximately 184.1 seconds; the 743.4-second session wall clock includes deliberate review pauses. A second text-input repair passed after a laptop/model cold restart and fresh manual re-pair. The manual re-pair is the rehearsed recovery path; do not promise automatic cold reconnect.

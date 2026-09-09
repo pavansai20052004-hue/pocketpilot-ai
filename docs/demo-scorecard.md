@@ -1,15 +1,15 @@
 # Milestone 10 demo reliability scorecard
 
-Ratings are based on observed deterministic mock-provider runs on the development laptop on 2026-09-07. Five means strongest. Java AI/patch structure is tested, but runtime-dependent ratings remain unscored because Maven is absent.
+Ratings are based on observed deterministic-provider and real-runner evidence on the release laptop through 2026-09-08. Five means strongest.
 
 | Dimension | Python | React | Java | Evidence |
 | --- | ---: | ---: | ---: | --- |
-| Setup reliability | 5 | 4 | — | Python and React real failures reproduce; Java reports `TOOL_MISSING`. |
+| Setup reliability | 5 | 4 | 5 | Python, React, and Java real failures reproduce; Java preflight reports `READY`. |
 | OCR readability | 5 | — | — | Python recovered 4/4 required tokens from a real pytest terminal on physical Android; React/Java await physical capture. |
 | Mock analysis reliability | 5 | 5 | 5 | Structured context-backed analysis passed automated generation tests. |
-| Patch reliability | 5 | 5 | 4 | Python 3/3 and React 2/2 full cycles; Java one-file patch generated but could not run Maven. |
-| Test speed | 5 | 4 | — | Validation measured 660 ms Python and 1,655 ms React in the recorded benchmark. |
-| Rollback reliability | 5 | 5 | — | Exact bytes restored and original failures returned in every executed cycle. |
+| Patch reliability | 5 | 5 | 4 | The release matrix passed Python 5/5, React 2/2, and Java 2/2 deterministic cycles. The real Java model patch was malformed and safely rejected. |
+| Test speed | 5 | 4 | 3 | Complete deterministic cycles measured about 3.5 seconds Python, 16.6 seconds React, and 21.2 seconds Java. |
+| Rollback reliability | 5 | 5 | 5 | Exact bytes restored and original failures returned in every executed cycle. |
 | Judge clarity | 5 | 5 | 4 | Each has one passing and one intentional failing test with a named file, line, and small guard patch. |
 
 Latest deterministic workflow benchmark medians:
@@ -26,6 +26,6 @@ Latest deterministic workflow benchmark medians:
 | Rollback API | 25 ms | 24 ms |
 | Full measured workflow, including restored-failure check | 4,664 ms | 17,771 ms |
 
-Real Ollama qualification on Python: **5/5 complete successes** using `qwen3-coder:30b`. Every cycle produced the correct root-cause concept and file, supported evidence, a parsed and validated patch, real passing pytest, successful rollback, and restoration of the original failing test. No model output was manually edited. Median provider analysis was 46.406 seconds, median patch generation was 67.174 seconds, and median complete workflow including rollback/restored-failure verification was 117.756 seconds. React remains the deterministic backup; Java remains `TOOL_MISSING` because Maven is absent.
+Real Ollama qualification on Python: **5/5 complete successes** using `qwen3-coder:30b` in the prior qualification, with a fresh two-cycle release rerun recorded in `docs/release-readiness.md`. Every successful cycle produced the correct root-cause concept and file, supported evidence, a parsed and validated patch, real passing pytest, successful rollback, and restoration of the original failing test. No model output was manually edited. React remains the deterministic backup. Java is runner-ready and passed 2/2 deterministic cycles; its real-model attempt diagnosed the issue correctly but the malformed patch was rejected before mutation.
 
 Physical Android regression: registered Python selection, camera open, real terminal OCR, bounded `user_service.py:5` recovery, voice **Fix this**, and voice **Show patch** passed on 2026-09-07. The capture completed in 2,060 ms and recovered `TypeError`, `NoneType`, `user_service.py`, and `get_user_name`.

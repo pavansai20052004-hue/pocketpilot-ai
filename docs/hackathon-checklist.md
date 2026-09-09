@@ -4,22 +4,23 @@
 
 - [ ] Charge phone and laptop.
 - [ ] Charge the power bank and pack cables.
-- [ ] Verify the development APK launches.
-- [ ] Verify laptop–phone pairing on the intended private network.
+- [x] Verify the standalone presentation APK launches with Metro stopped.
+- [x] Verify laptop–phone pairing on the intended private network.
 - [ ] Verify Ollama 0.33.3 or the currently approved version and cache `qwen3-coder:30b` in advance.
 - [ ] Run `ollama list`, provider health, and one warm-up request; confirm **LOCAL OLLAMA · qwen3-coder:30b** is visible.
 - [ ] Cache Python and React demo dependencies.
 - [ ] Run `npm run demo:check`.
-- [ ] Run `npm run demo:benchmark` and confirm Python 5/5 and React 3/3.
+- [ ] Run `npm run demo:benchmark` and confirm Python 5/5, Java 2/2, and React 2/2.
 - [ ] Run `npm run demo:benchmark:ollama` and use real Ollama as primary only at 4/5 or better.
-- [ ] Rehearse the Python hero flow twice on the physical phone.
+- [x] Rehearse the Python hero flow twice on the physical phone: real camera hero plus post-restart text-input verification.
 - [ ] Verify the React backup.
-- [ ] Confirm Java is shown honestly as `READY` or `TOOL_MISSING`.
+- [ ] Confirm Java is `READY` with Java 21 and Maven 3.9.16; switch demos if venue preflight reports otherwise.
 
 ## 30 minutes before
 
 - [ ] Prevent avoidable Windows update/restart interruptions manually.
-- [ ] Run `npm run demo:start`.
+- [ ] Run `npm run pocketpilot:start` and save the fresh pairing code.
+- [x] Confirm Metro port 8081 is not needed by the installed presentation APK.
 - [ ] Open the desktop Presentation Mode dashboard.
 - [ ] Select Python User Service and press **Prepare Demo**.
 - [ ] Run the pre-demo check and read every warning.

@@ -12,7 +12,8 @@ This is the execution checklist for the hackathon prototype. A milestone is comp
 - **Complete:** Milestone 5 — authenticated mobile bridge and complete text-debug workflow
 - **Complete:** Milestone 6 — Camera Vision Debugger / OCR, verified on Android
 - **Complete:** Milestone 7 — constrained voice actions, verified on Android
-- **Complete:** Milestone 8 — deterministic multi-language hackathon demos, with Java runtime verification conditional on Maven
+- **Complete:** Milestone 8 — deterministic multi-language hackathon demos, including real Java/Maven validation
+- **Complete:** Hackathon Release Candidate — standalone APK, physical real-Ollama iQOO run, cold-restart recovery, and controlled offline local-AI evidence
 
 ## Dependency path
 
@@ -200,7 +201,7 @@ Verification evidence (2026-09-03):
 Verification evidence (2026-09-04):
 
 - EAS internal development build `1a716796-9260-44bd-a463-80faed4dcceb` installed and launched on a physical Android handset without a native-module crash; device model and Android version were not recorded.
-- Private-LAN pairing at `192.168.0.202:8000`, secure token reuse, authenticated WebSocket connection, app restart, event replay, and coherent `ROLLED_BACK` recovery passed.
+- Private-LAN pairing at the launcher-advertised address, secure token reuse, authenticated WebSocket connection, app restart, event replay, and coherent `ROLLED_BACK` recovery passed.
 - Camera permission, live preview, flash on/off, capture, portrait and landscape handling, retake, guided crop, full-image preprocessing, and native bundled Latin ML Kit OCR passed. The camera controls were moved left to avoid a phone system/development overlay discovered during the test.
 - Real pytest terminal OCR completed in 375 ms and recovered 7/7 selected critical tokens: `TypeError`, `NoneType`, `user_service.py`, `5`, `test_missing_user_uses_fallback`, `get_user_name`, and `Unknown`. Full-image OCR also included surrounding Windows UI text and corrupted some non-critical assertion punctuation, confirming that editable review remains necessary.
 - The first guided laptop-screen capture completed in 1176 ms, showed editable output, and required manual corrections before submission. The confirmed text produced the correct root cause and one-file patch.
@@ -238,10 +239,10 @@ Depends on: M6.
 - [x] Registered-ID-only selection, bounded reset, real failure health checks, and traversal/security coverage.
 - [x] Desktop demo dashboard, mobile Demo Mode selector, preflight, reset/check/start helpers, and recovery documentation.
 - [x] Python three-cycle and React two-cycle repair/pass/rollback/fail stability tests.
-- [ ] Java live cycles on this laptop: Maven is not installed; suite remains conditional and reports `TOOL_MISSING`.
+- [x] Java live cycles on this laptop: official Apache Maven 3.9.16 installed and SHA-512 verified; two deterministic repair/test/rollback cycles passed.
 - [x] One short physical Android regression across a Milestone 8 demo.
 
-Acceptance criteria: reset scripts are repeatable and the golden path passes without fabricated results. Passed with the documented Java tool gap allowed by the milestone.
+Acceptance criteria: reset scripts are repeatable and the golden path passes without fabricated results. Passed across Python, Java, and React registered projects.
 
 Verification evidence (2026-09-07):
 
@@ -249,7 +250,7 @@ Verification evidence (2026-09-07):
 - The physical camera read the real pytest terminal failure in 2,060 ms with `GOOD · 100/100`; all four required tokens were recovered: `TypeError`, `NoneType`, `user_service.py`, and `get_user_name`.
 - Compact camera OCR output `user_service.py:5: TypeError` initially exposed a parser gap. The parser and no-patch recovery UI were corrected, automated coverage was added, and the same captured text retried successfully at HIGH confidence with bounded `user_service.py:5` context.
 - Physical voice **Fix this** generated the genuine one-file `None` guard and **Show patch** displayed the review. The full approve, real pytest pass, rollback, and restored-failure path passed repeatedly in isolated automated cycles.
-- Python passed 3/3 full cycles; React passed 2/2. Java mock analysis and patch generation passed, while live Maven validation remained `TOOL_MISSING` and was not fabricated.
+- Release-candidate rerun passed Python 5/5, Java 2/2, and React 2/2 deterministic full cycles. The real `qwen3-coder:30b` Java attempt correctly diagnosed `UserService.java:12` with valid evidence, but its patch output remained malformed after the one bounded repair attempt and was safely rejected.
 - Final regression: Ruff passed; backend pytest passed 116 with 5 documented skips; Vitest passed desktop 2, mobile 136, and shared 6 tests; ESLint, strict TypeScript, desktop production build, mobile web export, Expo Doctor 21/21, and Android config introspection all passed.
 
 ### M9 — UI polish and reliability (P0/P1)
@@ -271,14 +272,14 @@ Acceptance criteria: full demo completes repeatedly within three minutes after a
 
 Verification evidence (2026-09-08):
 
-- Desktop Presentation Mode was visually checked at 1366×768. One-click Python preparation returned `READY_WITH_TOOL_GAPS`, truthfully labeled the Deterministic Demo Provider, and exposed Maven as `TOOL_MISSING`.
+- Desktop Presentation Mode was visually checked at 1366×768. The release launcher now reports Java, Maven, Ollama, `qwen3-coder:30b`, Python, and all three registered scenarios ready.
 - The physical iQOO phone rendered the new Presentation Home, re-paired over the authenticated LAN bridge, captured the real pytest terminal failure, and produced a HIGH-confidence bounded root cause at `user_service.py:5`.
 - The phone generated and displayed the genuine one-file, two-line `None` guard, required explicit approval, ran real pytest, and showed `FIX VERIFIED`, `2/2` tests passed, one file changed, provider `DEMO`, diff/explanation controls, and Undo.
 - Physical rollback displayed `FIX UNDONE` and restored the exact broken file. A second uninterrupted physical rehearsal completed from GO to `FIX VERIFIED` in 42.3 seconds; the backend independently recorded the new SUCCESS session.
 - The timed session spent 71 ms in confirmed-text analysis, 31 ms generating/validating the patch, and 829 ms applying the approved patch plus real tests. The entire backend session after confirmed OCR completed in 12.0 seconds.
-- Reliability benchmark passed Python 5/5 and React 3/3 repair/pass/rollback cycles. Java remained an honest conditional skip because Maven is not installed.
+- Release-candidate reliability benchmark passed Python 5/5, Java 2/2, and React 2/2 repair/pass/rollback cycles with every original failure restored.
 - Safe shutdown/restart was exercised against owned process records; an agent matcher defect was found during the rehearsal, corrected, and the subsequent two-process stop/start round trip passed.
-- Final regression passed Ruff; backend pytest passed 118 with 5 documented skips; Vitest passed desktop 3, mobile 137, and shared 6 tests; ESLint, strict TypeScript, desktop production build, mobile web export, Expo Doctor 21/21, and Android config introspection passed.
+- Final release regression passed Ruff; backend pytest passed 130 with 4 documented skips; Vitest passed desktop 3, mobile 138, and shared 6 tests; ESLint, strict TypeScript, desktop production build, mobile web export, public-site production build, Expo Doctor 21/21, and Android config introspection passed.
 
 ### M10 — Verified iQOO integration (P2)
 
@@ -295,6 +296,16 @@ Depends on: M9, M10; M11 is optional.
 - Regression suite, device rehearsal, failure drills, setup validation, submission copy, and demo script.
 
 Acceptance criteria: clean-machine setup is documented; P0 suite passes; rollback and offline fallback are rehearsed; judging claims match working software.
+
+Release-candidate evidence (2026-09-09):
+
+- [x] Standalone presentation APK installed and launched on the physical iQOO with Metro stopped.
+- [x] Physical camera → real `qwen3-coder:30b` → high-confidence repository evidence → validated patch → explicit approval → real pytest 2/2 → exact rollback.
+- [x] Laptop/model cold restart followed by fresh manual pairing and a second real-model text → patch → pytest 2/2 verification.
+- [x] Controlled offline proof over the phone hotspot with mobile data disabled: 41/41 WAN probes unavailable across the complete 205.220-second local workflow; analysis, patch validation, pytest, rollback, and restored failure all passed.
+- [x] Workspace pinned for offline availability after the first isolation attempt exposed OneDrive Files On-Demand placeholders.
+- [x] Demo restored to the canonical broken state after qualification; real pytest reports the expected `1 failed, 1 passed` at `user_service.py:5`.
+- [ ] Automatic cold-app credential recovery. The release rehearsal required manual re-pairing after restart; the documented recovery path is generate a fresh code and pair again.
 
 ## Cross-cutting acceptance rules
 

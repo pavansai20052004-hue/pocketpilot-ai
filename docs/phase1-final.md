@@ -1,5 +1,7 @@
 # Phase-1 submission answers
 
+Release-candidate note (2026-09-09): the public product tour is live at `https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site`; the standalone Android APK launched on a physical iQOO without Metro; the camera-to-real-Ollama hero, cold-restart text repair after manual re-pair, real pytest, undo, and controlled WAN-isolated local-AI workflow all passed. Java 21 with verified Maven 3.9.16 passes 2/2 deterministic repair/test/rollback cycles. Exact evidence and limitations are recorded in `docs/release-readiness.md`.
+
 Ready-to-paste copy for the iQOO Hackathon submission form. Replace only form-specific team/contact fields; do not strengthen technical claims without new evidence.
 
 ## Idea title
@@ -55,7 +57,7 @@ PocketPilot uses **Ollama 0.33.3** on the laptop with **Qwen3-Coder 30B (`qwen3-
 - Camera OCR runs on the phone; images are not uploaded to the laptop.
 - Only user-confirmed OCR text and its input provenance cross the paired local connection.
 - Repository context, source, diffs, test output, and rollback state remain on the laptop.
-- With local Ollama active, analysis and patch generation use the laptop's loopback API and do not use a cloud model. External-network isolation was not physically verified because the temporary Windows firewall rule required administrator rights.
+- With local Ollama active, analysis and patch generation use the laptop's loopback API and do not use a cloud model. A controlled phone-hotspot run kept 41 consecutive WAN checks unavailable while real analysis, patch generation, tests, rollback, and failure restoration passed. This does not include or claim offline Android speech.
 - Voice audio is handled by the selected Android speech service and is not stored by PocketPilot. That service may use the internet, so offline speech is not claimed.
 
 ## Safety

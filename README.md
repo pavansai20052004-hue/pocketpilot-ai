@@ -4,13 +4,15 @@
 
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
-> Current phase: Milestone 10 competition integration is in final verification. Official Ollama 0.33.3 and the local `qwen3-coder:30b` model are installed and health-checked; the real provider passed 5/5 complete Python repair/test/rollback cycles and qualifies as the primary live provider. Java remains `TOOL_MISSING` because Maven is absent. Official sources confirm Office Kit as a product feature, but no verified developer API was found, so PocketPilot does not claim an Office Kit integration.
+Public product tour: **https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site**. The public site is presentation-only; the agent, model, repository, device sessions, and patches remain local.
+
+> Current phase: Hackathon Release Candidate. Official Ollama 0.33.3, local `qwen3-coder:30b`, Java 21, and Apache Maven 3.9.16 are installed and health-checked. The release matrix passes Python 5/5, Java 2/2, and React 2/2 deterministic repair/test/rollback cycles, plus 7/7 controlled real-Ollama Python cycles. The standalone APK completed a physical iQOO camera-to-real-Ollama repair, a post-restart text repair, real pytest verification, and rollback with Metro stopped. A controlled mobile-hotspot test also completed the entire local-AI workflow while 41 consecutive WAN checks remained unavailable. The real Java model attempt produced the correct diagnosis and evidence but its malformed patch was safely rejected. PocketPilot does not claim offline Android speech or an Office Kit integration.
 
 ## Foundation architecture
 
 | Component | Technology | Current responsibility |
 | --- | --- | --- |
-| Phone client | Expo development build, React Native, TypeScript, ML Kit, Android SpeechRecognizer/TTS | Camera/gallery OCR, safe push-to-talk commands, authenticated debug, approval, verification, history, and rollback UI |
+| Phone client | Standalone Expo Android APK, React Native, TypeScript, ML Kit, Android SpeechRecognizer/TTS | Camera/gallery OCR, safe push-to-talk commands, authenticated debug, approval, verification, history, and rollback UI without Metro |
 | Desktop dashboard | Vite, React, TypeScript | Workspace selection, pairing, device revocation, logs, and fallback UI |
 | Local agent | FastAPI, Pydantic, Python | Secure repository actions, persistent sessions, bounded local analysis |
 | Shared contracts | TypeScript package | Cross-client workspace, repository, and command contracts |
@@ -37,14 +39,14 @@ If PowerShell cannot find Python but Codex workspace dependencies are installed,
 ## Hackathon quick start
 
 1. Run `npm run demo:check` and note any honest readiness warnings.
-2. Run `npm run demo:start` to start FastAPI and the desktop dashboard.
+2. Run `npm run pocketpilot:start` to validate prerequisites, start only missing local services, open the production dashboard, and print a fresh phone pairing code.
 3. Run `npm run demo:reset` to restore and verify every registered scenario.
 4. Open `http://127.0.0.1:4173`, select **Python User Service**, and pair the phone.
 5. Run the real failing pytest command, scan it, generate a fix, review, approve, and show the real passing validation.
 
 Run `npm run demo:check` again after startup for the final green readiness view. Preflight never installs tools, pulls models, changes the firewall, or deletes files. See the [master script](docs/demo-script.md) and [recovery playbook](docs/demo-recovery.md).
 
-Use `npm run demo:stop` to stop only the two processes recorded by `demo:start`. In the desktop Presentation Mode dashboard, choose **Python User Service → Prepare Demo**. This restores and verifies the registered broken state, selects the workspace, and refreshes the honest readiness result. The mobile app starts in Presentation Mode; see the [presentation guide](docs/presentation-mode.md) and [event checklist](docs/hackathon-checklist.md).
+Use `npm run pocketpilot:stop` to stop only processes owned and recorded by the release launcher; a pre-existing Ollama service and unrelated Node/Python programs are preserved. In the desktop Presentation Mode dashboard, choose **Python User Service → Prepare Demo**. This restores and verifies the registered broken state, selects the workspace, and refreshes the honest readiness result. See the [installation guide](docs/install.md), [presentation guide](docs/presentation-mode.md), and [event checklist](docs/hackathon-checklist.md).
 
 ## Start and pair
 
@@ -71,19 +73,24 @@ Use `127.0.0.1` instead of `0.0.0.0` when phone access is not needed. LAN mode a
 
 The phone cannot browse or select laptop paths. Pairing codes expire after five minutes, allow five guesses, and are single-use. Android stores the opaque device token in Expo SecureStore; the laptop persists only its SHA-256 hash.
 
-Camera OCR uses native code and therefore requires an Android development build, not Expo Go. Without a local Android SDK, authenticate with Expo and create the internal development APK from `apps/mobile`:
+Camera OCR uses native code and therefore requires the standalone Android APK, not Expo Go. To produce the presentation APK from `apps/mobile`:
 
 ```powershell
 npx eas-cli@latest login
-npx eas-cli@latest build --platform android --profile development
-npx expo start --dev-client --lan
+npx eas-cli build --platform android --profile presentation
 ```
 
-The physical phone installs the APK from the EAS build page and connects to the Metro server on the same private Wi-Fi. A local Android SDK/ADB workflow remains available through `npm run android` followed by `npm run android:metro`. See [the vision debugger guide](docs/vision-debugger.md).
+The physical phone installs the APK from the EAS build page and connects directly to the authenticated laptop agent on the same private Wi-Fi. Metro is not part of the standalone release flow. A local development workflow remains available separately. See [the vision debugger guide](docs/vision-debugger.md).
 
-Voice recognition and TTS also use native modules and require rebuilding the development APK after dependency/configuration changes. PocketPilot uses push-to-talk, shows the recognized transcript, deterministically resolves a closed intent, checks current session state, and asks for a second confirmation before approval or rollback. See [the voice engine guide](docs/voice-engine.md).
+Voice recognition and TTS also use native modules and require rebuilding the standalone APK after native dependency/configuration changes. PocketPilot uses push-to-talk, shows the recognized transcript, deterministically resolves a closed intent, checks current session state, and asks for a second confirmation before approval or rollback. See [the voice engine guide](docs/voice-engine.md).
 
 ## Physical Android verification
+
+The presentation APK (EAS build `c9e3bde3-be24-44bf-a206-a1d37f3f6d38`, version 1.0.0 / Android build 2) installed and launched on the physical iQOO with Metro stopped. A fresh camera session used real `qwen3-coder:30b`, found `user_service.py:5` with high confidence, generated the genuine two-line guard, required phone approval, and passed real pytest 2/2. The backend recorded 65.140 seconds for analysis, 118.284 seconds for patch generation, 2 milliseconds for apply, and 675 milliseconds for verification. Actual wall time from session creation to success was 743.4 seconds because it includes deliberate human review pauses. Undo restored the exact original file and failing test.
+
+A subsequent laptop/model cold restart required manual re-pairing rather than automatic phone recovery. After re-pairing, a text-input session again reached high-confidence `user_service.py:5`, generated and approved the patch, and passed 2/2 tests. Its measured processing was 48.343 seconds for analysis, 160.362 seconds for patch generation, 3 milliseconds for apply, and 1.115 seconds for pytest. This manual reconnect requirement is retained as a known limitation.
+
+For controlled offline evidence, the phone hotspot stayed active while mobile data was disabled. The local verifier recorded 41 consecutive unavailable WAN checks for 207.384 seconds while `qwen3-coder:30b` completed correct analysis, validated patch generation, real pytest, rollback, and restored-failure verification in 205.220 seconds. Android speech was not part of that test and is not claimed offline.
 
 Milestone 6 passed on a physical Android handset on 2026-09-04 using EAS development build `1a716796-9260-44bd-a463-80faed4dcceb`. The device model and Android version were not recorded, and no personal device identifier is stored.
 

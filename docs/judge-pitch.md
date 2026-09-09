@@ -72,7 +72,7 @@ With the configured local Ollama provider, repository context stays on the lapto
 
 ### Does it require internet?
 
-The preinstalled Ollama model performs repository analysis and patch generation through the laptop's loopback API with no cloud-model integration. External-network isolation was not physically verified because Windows denied the temporary firewall rule without administrator rights. The phone and laptop still need their local connection, and Android speech recognition may depend on the selected phone speech service and network, so fully offline operation is not claimed.
+The preinstalled Ollama model performs repository analysis and patch generation through the laptop's loopback API with no cloud-model integration. A controlled phone-hotspot test disabled mobile data and recorded 41 consecutive unavailable WAN checks while real analysis, patch generation, pytest, rollback, and restored-failure verification passed. The phone and laptop still need their local connection for interactive use, and Android speech recognition may depend on the selected phone speech service, so offline speech is not claimed.
 
 ### Why require human approval?
 
@@ -96,7 +96,7 @@ The parser, repository context, and patch-validation architecture covers Python,
 
 ### Is Java fully verified?
 
-No. The Java fixture, parsing, analysis, and patch structure exist, and JDK 21 is installed, but Maven is absent on this laptop, so the real Java test loop remains `TOOL_MISSING`.
+The Java runner path is verified: Java 21 and SHA-512-verified Maven 3.9.16 reproduce the real NullPointerException, apply the constrained one-file deterministic repair, pass JUnit, roll back, and restore the failure in 2/2 cycles. A separate real-Qwen attempt correctly diagnosed the defect and evidence, but its malformed patch was rejected safely, so Python remains the real-model hero path.
 
 ### Is Office Kit integrated?
 

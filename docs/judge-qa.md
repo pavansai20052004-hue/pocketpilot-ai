@@ -20,7 +20,7 @@
 
 **What prevents destructive rollback?** PocketPilot snapshots only touched files and restores them only if their post-patch hashes still match. Newer edits create a conflict instead of being overwritten.
 
-**What happens without internet?** Repository analysis and patch generation use the installed Ollama model through the laptop's loopback API, with no cloud-model integration. The attempted external-network isolation check required administrator rights and was not physically completed, so the submission does not claim a verified fully offline end-to-end run. Android speech may also use its selected service's network. Mock mode is a visibly labeled deterministic engineering fallback, never presented as Ollama.
+**What happens without internet?** Repository analysis and patch generation use the installed Ollama model through the laptop's loopback API, with no cloud-model integration. In the controlled release proof, the laptop stayed on the phone hotspot while mobile data was disabled: 41 consecutive WAN checks remained unavailable while real `qwen3-coder:30b` analysis, patch generation, pytest, rollback, and restored-failure verification passed in 205.220 seconds. Android speech was not included and may use its selected service's network. Mock mode remains a visibly labeled engineering fallback, never presented as Ollama.
 
 **Does the image leave the phone?** No. Camera and gallery images are OCR'd on-device by default; only editable text the user confirms is sent to the laptop.
 
@@ -28,7 +28,7 @@
 
 **Does voice require internet?** It may. PocketPilot uses the selected Android speech service, whose network behavior depends on the device. The UI does not claim offline voice unless the phone service verifies it.
 
-**Which languages work? Does this only work for demos?** The shared parser/context/patch pipeline supports Python, Java, JavaScript, and TypeScript patterns. This milestone proves Python and React live and supplies Java with conditional Maven validation. Demo mappings exist only in the mock provider/reset registry; production Ollama remains generic.
+**Which languages work? Does this only work for demos?** The shared parser/context/patch pipeline supports Python, Java, JavaScript, and TypeScript patterns. Python, React/TypeScript, and Java all pass real-runner deterministic repair/test/rollback cycles; Java uses Maven/JUnit. Registered demo mappings exist only in the explicitly labeled deterministic provider/reset registry; production Ollama remains generic.
 
 **What is Office Kit’s role?** It is a future optional bridge. No unsupported iQOO Office Kit integration is claimed; authenticated LAN WebSocket/HTTP is the verified path.
 

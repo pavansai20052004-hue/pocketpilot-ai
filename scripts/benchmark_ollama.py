@@ -18,19 +18,21 @@ sys.path.insert(0, str(ROOT / "services" / "agent" / "src"))
 from pocketpilot_agent.config import Settings
 from pocketpilot_agent.main import create_app
 
-
 DEMOS = {
     "python-null-user": {
+        "project_dir": "python-broken-app",
         "fixture": "fixtures/traceback.txt",
         "expected_file": "user_service.py",
         "concept_tokens": ("none", "null", "missing", "dereferenc", "subscript"),
     },
     "java-null-user": {
+        "project_dir": "java-broken-app",
         "fixture": "fixtures/stacktrace.txt",
         "expected_file": "src/main/java/demo/UserService.java",
         "concept_tokens": ("null", "missing", "dereferenc", "nullpointer"),
     },
     "react-null-profile": {
+        "project_dir": "react-broken-app",
         "fixture": "fixtures/terminal.txt",
         "expected_file": "src/UserProfile.tsx",
         "concept_tokens": ("null", "missing", "fallback", "render"),
@@ -44,6 +46,19 @@ def elapsed_ms(started: float) -> int:
 
 def post(client: TestClient, path: str, payload: dict[str, object] | None = None):
     return client.post(path, json=payload)
+
+
+def stage_demo(demo_id: str, destination: Path) -> None:
+    """Copy only the selected registered demo and its reset fixture."""
+
+    demo = DEMOS[demo_id]
+    project_dir = str(demo["project_dir"])
+    source_root = ROOT / "demo"
+    destination.mkdir(parents=True)
+    shutil.copytree(source_root / project_dir, destination / project_dir)
+    fixture_destination = destination / "fixtures" / demo_id
+    fixture_destination.parent.mkdir(parents=True)
+    shutil.copytree(source_root / "fixtures" / demo_id, fixture_destination)
 
 
 def run_cycle(client: TestClient, demo_id: str, cycle: int) -> dict[str, object]:
@@ -221,7 +236,7 @@ def main() -> int:
     temporary_root = ROOT / ".pocketpilot" / "benchmarks" / str(uuid.uuid4())
     demo_root = temporary_root / "demo"
     try:
-        shutil.copytree(ROOT / "demo", demo_root)
+        stage_demo(demo_id, demo_root)
         settings = Settings(
             demo_root_path=str(demo_root),
             session_database_path=str(temporary_root / "sessions.db"),

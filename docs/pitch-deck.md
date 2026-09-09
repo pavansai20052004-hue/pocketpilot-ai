@@ -96,7 +96,7 @@ PocketPilot does not claim screenshot understanding itself is novel and does not
 - Physical run to `FIX VERIFIED`: **42.3 seconds** using the labeled deterministic provider on 2026-09-08.
 - Python deterministic reliability: **5/5 complete cycles**.
 - React deterministic backup: **3/3 complete cycles**.
-- Final automated regression: **128 backend tests passed, 5 skipped; 147 Vitest tests passed; Expo Doctor 21/21**.
+- Final automated regression: **130 backend tests passed, 4 skipped; 147 Vitest tests passed; Expo Doctor 21/21**.
 - Real Ollama (`qwen3-coder:30b`) reliability: **5/5 complete repair, real-test, rollback, and restored-failure cycles** with no manual output edits.
 - Real Ollama median latency: **46.4 seconds analysis, 67.2 seconds patch generation, 117.8 seconds complete measured workflow**.
 
