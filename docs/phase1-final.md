@@ -101,7 +101,7 @@ I am a solo builder who owns the entire PocketPilot loop: product framing, Expo/
 
 ## Android proficiency
 
-I built and physically verified an Expo/React Native Android development app with camera and gallery permissions, bundled on-device ML Kit OCR, image preprocessing, push-to-talk Android speech recognition, TTS, secure token storage, lifecycle recovery, and an authenticated local network bridge. I am comfortable integrating and validating native-backed Expo modules and Android configuration. I do not claim senior native-Kotlin expertise; this prototype's Android layer is React Native/Expo with native modules.
+I built and physically verified a standalone Expo/React Native Android app with camera and gallery permissions, bundled on-device ML Kit OCR, image preprocessing, push-to-talk Android speech recognition, TTS, secure token storage, lifecycle recovery, and an authenticated local network bridge. It launches without Metro. I am comfortable integrating and validating native-backed Expo modules and Android configuration. I do not claim senior native-Kotlin expertise; this prototype's Android layer is React Native/Expo with native modules.
 
 ## LLM proficiency
 
@@ -116,3 +116,5 @@ My relevant build history includes **DevPilot AI**, **ROCMporter Agent**, and no
 Official vivo/iQOO sources confirm Office Kit as a consumer cross-device feature, but no verified public developer API or hackathon SDK was found. PocketPilot does not claim to use Office Kit. Safe submission wording:
 
 > PocketPilot's bridge architecture is designed so verified iQOO cross-device APIs can replace or complement its authenticated LAN transport when developer access is available.
+
+Hackathon operation is separate from API integration: the official event guide says the loaner iQOO phone is supplied with Office Kit paired for screen mirroring, clipboard, file transfer, and remote control, with usage measured by HackTracker. PocketPilot can use those visible Office Kit product features during the event while continuing to use its own authenticated LAN bridge internally; do not describe that as an Office Kit API integration.
