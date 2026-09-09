@@ -11,7 +11,7 @@ This is the single copy-ready source for the submission. Replace only the contac
 | Product title and written answers | READY | Copy from this document |
 | Public product tour | READY | https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site |
 | Verified standalone Android APK | READY | Build 4: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/3fc84609-d3b0-4fbe-b4e4-71e24c053f7b |
-| Latest Android animation build | WAITING | Build 5: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/78f574bd-a52b-48ce-8992-d9f66fdf9e01 |
+| Preferred Android animation build | READY | Build 5 installed and reported working: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/78f574bd-a52b-48ce-8992-d9f66fdf9e01 |
 | Source repository | READY TO PUBLISH | Local repository is audited and ready for the public GitHub URL |
 | Narrated demo video | READY TO UPLOAD | `submission-artifacts/PocketPilot-AI-Demo-Walkthrough.mp4` with matching `.srt` captions |
 | Pitch deck | READY | PDF and editable PPTX are in `submission-artifacts/` |
@@ -19,7 +19,7 @@ This is the single copy-ready source for the submission. Replace only the contac
 
 Official event pages: https://iqoo-dev.reskilll.com/ and https://iqoo.reskilll.com/guide
 
-Build 4 is the fallback submission APK because it is finished, installed, and physically exercised. Build 5 becomes the preferred artifact only after it finishes and its new Analyze Error animation passes a quick physical smoke test. EAS internal-distribution artifact links expire, so the final APK should also be attached to a durable release location before submission.
+Build 5 is the preferred submission APK because it is installed and reported working on the physical iQOO, including the latest analysis-progress experience. Build 4 remains the fully exercised fallback. EAS internal-distribution artifact links expire, so a durable release location should be added after Phase 1 if organisers require a long-lived APK download.
 
 ## Primary fields
 
@@ -129,7 +129,7 @@ The official guide says code must be original and written during the event windo
 ## Final submission order
 
 1. Publish the cleaned repository and add the public GitHub URL here.
-2. Wait for Build 5; install it and smoke-test scan, analysis animation, voice, approval, verified fix, and undo. If it fails or is delayed, submit verified Build 4.
+2. Use installed Build 5 for the submission and live demo; retain verified Build 4 as the fallback.
 3. Run `npm run pocketpilot:start`, reset the Python demo, and keep Qwen3-Coder warm.
 4. Upload the reviewed narrated demo as unlisted and add its link here.
 5. Upload the reviewed PDF deck from `submission-artifacts/`.
