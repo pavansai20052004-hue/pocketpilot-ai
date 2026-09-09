@@ -29,6 +29,7 @@ import type {
   VisionInputSource,
 } from '@pocketpilot/shared-types';
 
+import pocketPilotIcon from './assets/pocketpilot-icon.png';
 import { analyzeText, getAnalysis } from './src/api/analysis';
 import { ApiClient, ApiError, normalizeBaseUrl } from './src/api/client';
 import { pairDevice } from './src/api/devices';
@@ -39,7 +40,8 @@ import { getProviderHealth, getWorkspace } from './src/api/workspaces';
 import { clearConnection, loadConnection, saveConnection, type StoredConnection } from './src/auth/secureStorage';
 import { LocalWebSocketBridge, type DeviceBridge } from './src/bridge/DeviceBridge';
 import { initialWorkflowState, pipelineStatus, workflowReducer, type WorkflowState } from './src/state/workflow';
-import { resolveWorkPhase, workPhaseContent, type WorkPhase } from './src/ui/workProgress';
+import { WorkInProgress } from './src/ui/WorkInProgress';
+import { resolveWorkPhase } from './src/ui/workProgress';
 import { VisionScanner } from './src/vision/VisionScanner';
 import { VoiceActionExecutor } from './src/voice/actionExecutor';
 import type { SpeechCapability, VoiceExecutionResult, VoiceIntent, VoiceSessionContext } from './src/voice/contracts';
@@ -625,58 +627,6 @@ function Pipeline({ steps }: { steps: ReadonlyArray<{ label: string; complete: b
   return <Card><Eyebrow>PIPELINE</Eyebrow>{steps.map((step) => <View key={step.label} style={styles.pipelineRow}><Text style={[styles.pipelineIcon, step.complete && styles.successText, step.active && styles.activeText]}>{step.complete ? '✓' : step.active ? '●' : '○'}</Text><Text style={[styles.pipelineLabel, (step.complete || step.active) && styles.brightText]}>{step.label}</Text></View>)}</Card>;
 }
 
-function WorkInProgress({ phase }: { phase: WorkPhase }) {
-  const pulse = useRef(new Animated.Value(0)).current;
-  const spin = useRef(new Animated.Value(0)).current;
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [messageIndex, setMessageIndex] = useState(0);
-  const content = workPhaseContent(phase);
-
-  useEffect(() => {
-    pulse.setValue(0);
-    spin.setValue(0);
-    setElapsedSeconds(0);
-    setMessageIndex(0);
-
-    const pulseAnimation = Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { duration: 950, toValue: 1, useNativeDriver: true }),
-      Animated.timing(pulse, { duration: 950, toValue: 0, useNativeDriver: true }),
-    ]));
-    const spinAnimation = Animated.loop(Animated.timing(spin, { duration: 4400, toValue: 1, useNativeDriver: true }));
-    const elapsedTimer = setInterval(() => setElapsedSeconds((value) => value + 1), 1000);
-    const messageTimer = setInterval(() => setMessageIndex((value) => (value + 1) % content.messages.length), 4500);
-
-    pulseAnimation.start();
-    spinAnimation.start();
-    return () => {
-      pulseAnimation.stop();
-      spinAnimation.stop();
-      clearInterval(elapsedTimer);
-      clearInterval(messageTimer);
-    };
-  }, [content.messages.length, phase, pulse, spin]);
-
-  const rotation = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const coreScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1.08] });
-  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.22, 0.72] });
-
-  return (
-    <View accessibilityLabel={`${content.title}. ${content.messages[messageIndex]}`} accessibilityRole="progressbar" accessibilityValue={{ text: `${elapsedSeconds} seconds elapsed` }} style={styles.workCard}>
-      <View style={styles.workVisual}>
-        <Animated.View style={[styles.workHalo, { opacity: haloOpacity, transform: [{ scale: coreScale }] }]} />
-        <Animated.View style={[styles.workOrbit, { transform: [{ rotate: rotation }] }]}><View style={styles.workSatellite} /></Animated.View>
-        <Animated.View style={[styles.workCore, { transform: [{ scale: coreScale }] }]}><Text style={styles.workCoreText}>{content.icon}</Text></Animated.View>
-      </View>
-      <View style={styles.workCopy}>
-        <Text style={styles.workEyebrow}>{content.eyebrow}</Text>
-        <Text style={styles.workTitle}>{content.title}</Text>
-        <Text accessibilityLiveRegion="polite" style={styles.workMessage}>{content.messages[messageIndex]}</Text>
-        <View style={styles.workMeta}><View style={styles.workLiveDot} /><Text style={styles.workElapsed}>{elapsedSeconds}s elapsed · {content.footer}</Text></View>
-      </View>
-    </View>
-  );
-}
-
 function RootCause({ analysis, busy, canGenerate, onGenerate }: { analysis: AnalysisRecord; busy: boolean; canGenerate: boolean; onGenerate: () => void }) {
   const result = analysis.result;
   return <Card accent><View style={styles.titleRow}><View><Eyebrow>ROOT CAUSE FOUND</Eyebrow><Text style={styles.sourceNote}>{analysis.input_source} INPUT · {providerLabelFromRecord(analysis)}</Text></View><Badge label={`${result.confidence} CONFIDENCE`} tone={result.confidence === 'HIGH' ? 'good' : 'warn'} /></View><Text style={styles.judgeLocation}>{result.likely_file ?? 'Location not established'}{result.likely_line === null ? '' : ` · LINE ${result.likely_line}`}</Text><Info label="PROBLEM" value={result.root_cause} /><Info label="EVIDENCE" value={result.explanation} /><Info label="REPAIR STRATEGY" value={result.repair_strategy} />{result.evidence.slice(0, 2).map((item) => <View key={`${item.relative_path}:${item.line ?? 0}`} style={styles.evidence}><Text style={styles.codeText}>{item.relative_path}{item.line === null ? '' : `:${item.line}`}</Text><Text style={styles.evidenceText}>{item.observation}</Text></View>)}{canGenerate && <PrimaryButton accessibilityLabel="Generate fix" disabled={busy} label={busy ? 'GENERATING FIX…' : 'GENERATE FIX'} onPress={onGenerate} />}</Card>;
@@ -711,7 +661,7 @@ function SettingsScreen({ connection, demoMode, onDemoMode, onDisconnect, speech
 }
 
 function Header({ connection, presentationMode }: { connection: string; presentationMode: boolean }) { return <View style={styles.header}><Brand /><View style={styles.headerStatus}>{presentationMode && <Text numberOfLines={1} style={styles.presentationPill}>PRESENTATION</Text>}<View style={styles.connectionPill}><StatusDot good={connection === 'CONNECTED'} /><Text style={styles.connectionText}>{connection}</Text></View></View></View>; }
-function Brand() { return <View style={styles.brand}><Image accessibilityIgnoresInvertColors source={require('./assets/pocketpilot-icon.png')} style={styles.markImage} /><View><Text style={styles.brandName}>POCKETPILOT</Text><Text style={styles.brandSub}>PHONE CONTROL</Text></View></View>; }
+function Brand() { return <View style={styles.brand}><Image accessibilityIgnoresInvertColors source={pocketPilotIcon} style={styles.markImage} /><View><Text style={styles.brandName}>POCKETPILOT</Text><Text style={styles.brandSub}>PHONE CONTROL</Text></View></View>; }
 function TabBar({ active, onSelect }: { active: Tab; onSelect: (tab: Tab) => void }) { const tabs: ReadonlyArray<[Tab, string]> = [['HOME', '⌂'], ['DEBUG', '⌘'], ['SESSIONS', '≡'], ['SETTINGS', '⚙']]; return <View style={styles.tabBar}>{tabs.map(([tab, icon]) => <Pressable accessibilityLabel={tab} key={tab} onPress={() => onSelect(tab)} style={styles.tab}><Text style={[styles.tabIcon, active === tab && styles.tabActive]}>{icon}</Text><Text style={[styles.tabLabel, active === tab && styles.tabActive]}>{tab}</Text></Pressable>)}</View>; }
 function Card({ children, accent = false }: { children: React.ReactNode; accent?: boolean }) { return <View style={[styles.card, accent && styles.cardAccent]}>{children}</View>; }
 function Eyebrow({ children }: { children: React.ReactNode }) { return <Text style={styles.eyebrow}>{children}</Text>; }
@@ -760,7 +710,6 @@ const styles = StyleSheet.create({
   primaryButton: { minHeight: 54, borderRadius: 13, backgroundColor: '#C8FF3D', alignItems: 'center', justifyContent: 'center', marginTop: 2 }, primaryText: { color: '#0B1008', fontSize: 12, fontWeight: '900', letterSpacing: 1 }, secondaryButton: { minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: '#465043', alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: '#CCD4C8', fontSize: 11, fontWeight: '800', letterSpacing: 1 }, disabled: { opacity: 0.42 }, pressed: { transform: [{ scale: 0.99 }] },
   actionGrid: { gap: 10 }, actionCard: { minHeight: 104, borderRadius: 17, borderWidth: 1, borderColor: '#30402A', backgroundColor: '#11180F', padding: 16, justifyContent: 'center' }, voiceAction: { borderColor: '#637E35', backgroundColor: '#14200F' }, actionIcon: { color: '#C8FF3D', fontSize: 20, marginBottom: 7 }, actionTitle: { color: '#EEF2EA', fontSize: 12, letterSpacing: 1, fontWeight: '900' }, actionSubtitle: { color: '#727B6E', fontSize: 11, marginTop: 4 },
   pipelineRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#222A20' }, pipelineIcon: { color: '#586056', width: 26, fontSize: 15 }, pipelineLabel: { color: '#697266', fontSize: 12 }, brightText: { color: '#D3DACF' }, successText: { color: '#C8FF3D' }, activeText: { color: '#F0C96B' }, failureText: { color: '#FF8B75' },
-  workCard: { minHeight: 166, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 17, padding: 18, borderWidth: 1, borderColor: '#526B2E', borderRadius: 20, backgroundColor: '#10180E' }, workVisual: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center' }, workHalo: { position: 'absolute', width: 72, height: 72, borderRadius: 36, backgroundColor: '#C8FF3D' }, workOrbit: { position: 'absolute', width: 94, height: 94, borderRadius: 47, borderWidth: 1, borderColor: '#6C8A3B' }, workSatellite: { position: 'absolute', top: -4, left: 40, width: 9, height: 9, borderRadius: 5, backgroundColor: '#F0C96B', shadowColor: '#F0C96B', shadowOpacity: .65, shadowRadius: 6 }, workCore: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#C8FF3D', backgroundColor: '#0A1008' }, workCoreText: { color: '#C8FF3D', fontSize: 15, fontWeight: '900', letterSpacing: .6 }, workCopy: { flex: 1, gap: 7 }, workEyebrow: { color: '#C8FF3D', fontSize: 8, fontWeight: '900', letterSpacing: 1.25 }, workTitle: { color: '#F2F6EE', fontSize: 18, lineHeight: 22, fontWeight: '800' }, workMessage: { minHeight: 36, color: '#A0AA9B', fontSize: 11, lineHeight: 17 }, workMeta: { flexDirection: 'row', alignItems: 'center', gap: 7 }, workLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C8FF3D' }, workElapsed: { flex: 1, color: '#798474', fontSize: 9, lineHeight: 13 },
   badge: { overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 8, fontSize: 8, fontWeight: '900', letterSpacing: .7 }, badgeGood: { backgroundColor: '#203118', color: '#C8FF3D' }, badgeWarn: { backgroundColor: '#352B15', color: '#F0C96B' }, badgeBad: { backgroundColor: '#351B17', color: '#FF8B75' },
   info: { gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#252D23' }, infoValue: { color: '#AEB8AA', fontSize: 12, lineHeight: 19 }, evidence: { borderRadius: 10, backgroundColor: '#080C09', padding: 12, gap: 6 }, codeText: { color: '#C8FF3D', fontSize: 11, fontFamily: 'monospace' }, evidenceText: { color: '#808A7C', fontSize: 11, lineHeight: 17 },
   metrics: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#273024', paddingVertical: 13 }, metric: { flex: 1 }, metricValue: { color: '#E9EEE5', fontSize: 13, fontWeight: '800' }, metricLabel: { color: '#657060', fontSize: 8, marginTop: 4, letterSpacing: 1 }, successActions: { gap: 9 },

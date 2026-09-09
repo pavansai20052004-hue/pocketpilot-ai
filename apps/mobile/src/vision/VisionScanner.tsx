@@ -20,6 +20,7 @@ import type { CapturedImage, PreparedImage } from './contracts';
 import { OnDeviceOcrProvider } from './ocrProvider';
 import { preprocessImage } from './preprocess';
 import { initialVisionState, visionReducer } from './state';
+import { WorkInProgress } from '../ui/WorkInProgress';
 
 const WARNING_COPY: Readonly<Record<OcrWarningCode, string>> = {
   EMPTY_TEXT: 'No readable text was found.',
@@ -167,6 +168,13 @@ export function VisionScanner({ onAnalyze, onClose, onReviewText, onSpeak }: Vis
     </VisionPage>;
   }
 
+  if (state.phase === 'REVIEW' && state.result !== null && sending) {
+    return <VisionPage title="Analyzing error" subtitle="Your confirmed text is now being checked against bounded source context on the laptop." onClose={close}>
+      <WorkInProgress phase="ANALYZE" />
+      <View style={styles.analysisSafety}><Text style={styles.analysisSafetyTitle}>SAFE WHILE YOU WAIT</Text><Text style={styles.analysisSafetyText}>PocketPilot is reading only the selected workspace. No files can change during analysis.</Text></View>
+    </VisionPage>;
+  }
+
   if (state.phase === 'REVIEW' && state.result !== null) {
     const quality = state.result.quality;
     return <VisionPage title="Confirm extracted text" subtitle="OCR can be wrong. Edit the text below before analysis." onClose={close}>
@@ -231,4 +239,5 @@ const styles = StyleSheet.create({
   previewFrame: { height: 390, overflow: 'hidden', borderRadius: 16, backgroundColor: '#020302', alignItems: 'center', justifyContent: 'center' }, previewImage: { width: '100%', height: '100%' }, previewGuide: { position: 'absolute', width: '90%', height: '62%', borderWidth: 2, borderColor: '#C8FF3D', borderRadius: 10 }, processing: { minHeight: 300, gap: 24, alignItems: 'center', justifyContent: 'center' },
   qualityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, quality: { overflow: 'hidden', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 }, good: { color: '#C8FF3D', backgroundColor: '#203118' }, warn: { color: '#F0C96B', backgroundColor: '#352B15' }, bad: { color: '#FF8B75', backgroundColor: '#351B17' }, source: { color: '#697266', fontSize: 9, fontWeight: '800' }, warning: { color: '#D9B968', backgroundColor: '#211D10', padding: 10, borderRadius: 9, fontSize: 11, lineHeight: 17 }, dangerWarning: { color: '#FF9A85', backgroundColor: '#251512', padding: 10, borderRadius: 9, fontSize: 11, lineHeight: 17 }, label: { color: '#778172', fontSize: 9, letterSpacing: 1.2, fontWeight: '800', marginTop: 5 }, textArea: { minHeight: 260, borderWidth: 1, borderColor: '#3A4437', borderRadius: 13, backgroundColor: '#080C09', color: '#E1E7DD', padding: 15, fontSize: 12, lineHeight: 19, fontFamily: 'monospace' }, rawLink: { color: '#C8FF3D', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, rawText: { color: '#859080', backgroundColor: '#080C09', padding: 13, borderRadius: 10, fontSize: 10, lineHeight: 16, fontFamily: 'monospace' },
   capturedSummary: { padding: 14, borderWidth: 1, borderColor: '#33422D', borderRadius: 13, backgroundColor: '#10180E' }, capturedEyebrow: { color: '#C8FF3D', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 }, detectedType: { color: '#EEF2EA', fontSize: 16, fontWeight: '800', marginTop: 8 }, tokenRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }, token: { overflow: 'hidden', color: '#C8FF3D', backgroundColor: '#080C09', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, fontSize: 9, fontFamily: 'monospace' },
+  analysisSafety: { padding: 15, borderRadius: 13, backgroundColor: '#0C1511', borderWidth: 1, borderColor: '#244333' }, analysisSafetyTitle: { color: '#79D9A2', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 }, analysisSafetyText: { color: '#82A08C', fontSize: 11, lineHeight: 17, marginTop: 6 },
 });
