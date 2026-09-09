@@ -2,6 +2,13 @@
 
 **See it. Say it. Fix it.**
 
+[![PocketPilot CI](https://github.com/pavansai20052004-hue/pocketpilot-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/pavansai20052004-hue/pocketpilot-ai/actions/workflows/ci.yml)
+![Android](https://img.shields.io/badge/product-Android-B8FF32?style=flat-square&logo=android&logoColor=05090D)
+![Local AI](https://img.shields.io/badge/AI-local%20Ollama-B8FF32?style=flat-square)
+![Human approval](https://img.shields.io/badge/patching-human%20approval%20required-F3C969?style=flat-square)
+
+**[Public product tour](https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site)** · **[Architecture](docs/architecture.md)** · **[Security model](docs/security-model.md)** · **[Submission deck](submission-artifacts/PocketPilot-AI-Hackathon-Deck.pdf)** · **[Narrated walkthrough](submission-artifacts/PocketPilot-AI-Demo-Walkthrough.mp4)**
+
 PocketPilot AI is a phone-first, local software-engineering assistant for the iQOO Hackathon 2026 Developer Tools track. A developer captures or pastes an error on their phone, reviews a proposed code diff, explicitly approves it, and watches a constrained laptop agent apply the change and run real tests.
 
 Public product tour: **https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site**. The public site is presentation-only; the agent, model, repository, device sessions, and patches remain local.

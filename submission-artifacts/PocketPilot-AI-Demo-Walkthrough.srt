@@ -1,0 +1,35 @@
+1
+00:00:00,000 --> 00:00:12,560
+Meet PocketPilot AI, a phone-first, local-first developer assistant that turns a visible software failure into a human-approved, test-verified fix.
+
+2
+00:00:12,560 --> 00:00:27,230
+When an error appears in a terminal or on another device, developers must copy the trace, find the relevant file, inspect the code, propose a repair, and prove it works.
+
+3
+00:00:27,230 --> 00:00:44,760
+PocketPilot compresses that fragmented workflow into four clear stages. Scan the failure, understand it with bounded repository context, review the evidence and exact diff, then verify with the project’s approved tests.
+
+4
+00:00:44,760 --> 00:01:02,980
+The Android app handles camera capture, on-device OCR, closed-vocabulary voice commands, root-cause review, patch approval, live progress, test results, and undo. The user remains in control at every step.
+
+5
+00:01:02,980 --> 00:01:22,210
+The mobile app sends reviewed intent through an authenticated local session. The laptop owns repository paths, selected context, patch application, verification, and rollback. Source code is not uploaded to a cloud model.
+
+6
+00:01:22,210 --> 00:01:43,770
+Safety is enforced before anything changes. PocketPilot validates command shape, evidence, workspace boundaries, file hashes, and the exact diff. Only an explicit approval can apply a current proposal, and only allowlisted tests can run.
+
+7
+00:01:43,770 --> 00:02:03,290
+The demonstrated Python repair passes two of two real tests. Seven real Ollama cycles passed. The wider system passed one hundred thirty backend tests, one hundred forty-nine JavaScript tests, and all twenty-one Expo Doctor checks.
+
+8
+00:02:03,290 --> 00:02:20,600
+At the event, the supplied Office Kit strengthens the cross-device demo through screen mirroring, clipboard, file transfer, and remote control. PocketPilot does not claim a vendor API that has not been provided.
+
+9
+00:02:20,600 --> 00:02:35,510
+PocketPilot AI gives developers a fast, local, and reviewable path from what they can see to what they can safely ship. See it. Say it. Fix it.

@@ -12,9 +12,9 @@ This is the single copy-ready source for the submission. Replace only the contac
 | Public product tour | READY | https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site |
 | Verified standalone Android APK | READY | Build 4: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/3fc84609-d3b0-4fbe-b4e4-71e24c053f7b |
 | Latest Android animation build | WAITING | Build 5: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/78f574bd-a52b-48ce-8992-d9f66fdf9e01 |
-| Source repository | BLOCKED | Publish this local repository to GitHub, then paste the public repository URL |
-| 60–90 second demo video | TO RECORD | Follow `docs/demo-video-plan.md`, upload unlisted, then paste the URL |
-| Pitch deck | TO EXPORT | Build from `docs/pitch-deck.md`, then add its share/download URL if the form requests one |
+| Source repository | READY TO PUBLISH | Local repository is audited and ready for the public GitHub URL |
+| Narrated demo video | READY TO UPLOAD | `submission-artifacts/PocketPilot-AI-Demo-Walkthrough.mp4` with matching `.srt` captions |
+| Pitch deck | READY | PDF and editable PPTX are in `submission-artifacts/` |
 | Team/contact fields | USER INPUT | Add name, email, phone, institution, and any teammate details required by the form |
 
 Official event pages: https://iqoo-dev.reskilll.com/ and https://iqoo.reskilll.com/guide
@@ -105,7 +105,7 @@ Use this forward-looking sentence if the form asks about future iQOO integration
 | Creative phone use | 15% | Camera, on-device OCR, voice, diff review, approval, live status, TTS, and undo on the iQOO phone |
 | Technical depth | 15% | React Native, authenticated LAN bridge, FastAPI state machine, local Ollama, strict validation, atomic patching, allowlisted tests, and SQLite events |
 | Office Kit usage | 10% | At the event, use the supplied Office Kit for screen mirroring, remote input, clipboard, and approved file transfer; HackTracker records counts and durations |
-| Demo and presentation | 10% | 3–5 minute live phone demo plus the prepared 85-second recovery video |
+| Demo and presentation | 10% | 3–5 minute live phone demo plus the prepared 2 minute 35 second narrated walkthrough |
 
 The official guide requires the product to run and be pitched on the iQOO phone. PocketPilot satisfies that product shape; the laptop remains the local repository/AI execution side while the phone is the capture, review, approval, and result surface.
 
@@ -131,9 +131,9 @@ The official guide says code must be original and written during the event windo
 1. Publish the cleaned repository and add the public GitHub URL here.
 2. Wait for Build 5; install it and smoke-test scan, analysis animation, voice, approval, verified fix, and undo. If it fails or is delayed, submit verified Build 4.
 3. Run `npm run pocketpilot:start`, reset the Python demo, and keep Qwen3-Coder warm.
-4. Record the 85-second demo using `docs/demo-video-plan.md`; hide pairing codes, tokens, private paths, and notifications.
-5. Upload the video as unlisted and add its link here.
-6. Export the pitch deck from `docs/pitch-deck.md` if the form requires one.
+4. Upload the reviewed narrated demo as unlisted and add its link here.
+5. Upload the reviewed PDF deck from `submission-artifacts/`.
+6. Open the deck, video, prototype, and repository links once in a private browser before submission.
 7. At the venue, use the supplied Office Kit visibly for screen mirroring, remote input, clipboard, and permitted file transfer so HackTracker captures genuine usage.
 8. Paste the submission answers, add team/contact fields, and perform a final claim and event-window compliance check.
 9. Submit only after opening every public link in a private/incognito browser.
