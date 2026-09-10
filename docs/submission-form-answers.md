@@ -8,11 +8,17 @@ PocketPilot AI — See it. Say it. Fix it.
 
 ## Description
 
-PocketPilot AI is a phone-first developer assistant that turns a visible software failure into a repository-aware, human-approved, and test-verified fix. A developer scans a terminal, IDE, browser, or test-machine error with an Android phone, confirms the on-device OCR text, and sends only that reviewed text to an authenticated laptop agent. A local Qwen coding model analyzes bounded repository evidence and proposes a minimal diff. PocketPilot validates the evidence, workspace path, file hashes, patch shape, and risk before showing the exact change on the phone. Nothing is modified until the developer explicitly approves. The laptop then applies the patch atomically, runs only the registered project test command, reports the real result, and supports conflict-safe rollback.
+Developers often encounter failures away from the IDE—on a terminal, browser, test machine or demo laptop—then lose time copying context across tools and trusting AI suggestions that have never been tested. PocketPilot AI turns an iQOO phone into a secure debugging control surface that closes the loop from visible error to verified repair.
 
-The phone is a genuine control surface: camera, OCR review, microphone, patch review, approval, live status, explanation, and undo. Repository source and model inference remain on the laptop; the repository is not uploaded to a cloud model. At the event, the supplied Office Kit will be used visibly for screen mirroring, remote input, clipboard, and permitted file transfer. PocketPilot does not claim an unavailable Office Kit developer API.
+The developer scans an error with the phone camera, reviews on-device OCR and sends only confirmed text to an authenticated laptop agent. A local Qwen3-Coder 30B model analyzes a bounded, security-filtered repository window and proposes a minimal diff. PocketPilot validates paths, evidence, current file hashes, patch shape and risk, then shows the exact change on the phone. Nothing changes until human approval. The laptop applies atomically, runs only the registered test command, reports the real result and offers conflict-safe undo.
 
-Pre-existing work disclosure: the submitted repository contains a prototype and validation work created before the Hyderabad event, including the mobile workflow, authenticated local bridge, local-model analysis, validated patch flow, tests, and rollback. We will follow organiser guidance on what may be reused, adapted, or rebuilt during the official event window and will clearly identify event-window work.
+Our physical iQOO demo captured a failing Python traceback, found the root cause at user_service.py:5, generated a two-line guard, received phone approval, passed pytest 2/2, explained the change by voice and restored the original safely. Registered Python, Java and React scenarios plus CI exercise the same repair/test/rollback contracts.
+
+The phone is not a resized dashboard: it is the camera, OCR reviewer, microphone, diff viewer, approval key, live status display and rollback control. Source and local inference remain on the paired laptop; AI output never becomes an arbitrary command.
+
+Source: https://github.com/pavansai20052004-hue/pocketpilot-ai
+
+Disclosure: the repository contains pre-event prototype and validation work, which its history preserves. We will follow organiser guidance for what must be rebuilt during the official event window. We claim no unavailable Office Kit API and will use the supplied Office Kit only through its supported cross-device features.
 
 ## Prototype URL
 
@@ -32,11 +38,11 @@ Upload `submission-artifacts/PocketPilot-AI-Hackathon-Deck.pdf`. The editable Po
 
 ## Prior builds and hackathons
 
-Our team has explored developer-tool and AI-agent ideas before, including repository-aware debugging and migration-assistance prototypes. PocketPilot AI is the most complete version of that direction: an Android capture and approval surface, authenticated local laptop agent, local Ollama coding model, bounded evidence collection, validated diffs, real project tests, and rollback. The repository history is preserved and the pre-event prototype is explicitly disclosed so organisers can assess originality and event-window work accurately.
+PocketPilot evolved from earlier repository-aware debugging prototypes into our first complete phone-controlled repair loop. We have shipped installable Android internal builds, open-sourced the monorepo and physically verified camera OCR, authenticated pairing, local Ollama analysis, exact patch approval, real tests and rollback on an iQOO device. The repository preserves pre-event history and clearly separates prior work from event-window work so organisers can assess originality fairly.
 
 ## What makes the team stand out
 
-Zero Day 404 combines mobile product thinking with backend, local-AI, and reliability engineering. We did not stop at a screenshot explanation or an AI-generated patch. We built the complete trust loop: on-device OCR, state-checked voice commands, authenticated pairing, bounded repository context, evidence validation, exact diff review, human approval, atomic application, allowlisted tests, and conflict-safe undo. The same Python repair completed on a physical iQOO device, and the repository carries automated evidence across the backend, desktop, mobile, and shared protocol. We are equally disciplined about honest limitations: speech may use the phone’s selected service, the local 30B model prioritizes quality over latency, and Office Kit is used as the supplied cross-device product rather than claimed as an unsupported API integration.
+Zero Day 404 spans mobile, backend, local AI and reliability engineering. Most AI debugging demos stop at an explanation or code suggestion; PocketPilot proves an outcome. The model diagnoses and drafts, while deterministic validators enforce evidence, paths, hashes, diff boundaries and risk; a human approves; allowlisted tests decide success; rollback protects later user edits. On physical iQOO hardware we completed camera-to-fix, voice control, pytest 2/2 verification and safe undo. The public repository includes Android, desktop, FastAPI agent, shared contracts, CI, threat-model documentation, pitch deck and a polished walkthrough. We also state limitations plainly: the quality-focused 30B model runs on the paired laptop, and Office Kit is used through supported product features rather than a fictional API.
 
 ## Android proficiency
 
