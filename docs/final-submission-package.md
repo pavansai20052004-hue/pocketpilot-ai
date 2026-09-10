@@ -12,7 +12,7 @@ This is the single copy-ready source for the submission. Replace only the contac
 | Public product tour | READY | https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site |
 | Verified standalone Android APK | READY | Build 4: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/3fc84609-d3b0-4fbe-b4e4-71e24c053f7b |
 | Preferred Android animation build | READY | Build 5 installed and reported working: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/78f574bd-a52b-48ce-8992-d9f66fdf9e01 |
-| Source repository | READY TO PUBLISH | Local repository is audited and ready for the public GitHub URL |
+| Source repository | READY | https://github.com/pavansai20052004-hue/pocketpilot-ai |
 | Narrated demo video | READY TO UPLOAD | `submission-artifacts/PocketPilot-AI-Demo-Walkthrough.mp4` with matching `.srt` captions |
 | Pitch deck | READY | PDF and editable PPTX are in `submission-artifacts/` |
 | Team/contact fields | USER INPUT | Add name, email, phone, institution, and any teammate details required by the form |
@@ -128,7 +128,7 @@ The official guide says code must be original and written during the event windo
 
 ## Final submission order
 
-1. Publish the cleaned repository and add the public GitHub URL here.
+1. Use the published, CI-verified source repository linked below.
 2. Use installed Build 5 for the submission and live demo; retain verified Build 4 as the fallback.
 3. Run `npm run pocketpilot:start`, reset the Python demo, and keep Qwen3-Coder warm.
 4. Upload the reviewed narrated demo as unlisted and add its link here.
@@ -141,7 +141,7 @@ The official guide says code must be original and written during the event windo
 ## Final link block
 
 - Public product tour: https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site
-- Source repository: PENDING
+- Source repository: https://github.com/pavansai20052004-hue/pocketpilot-ai
 - Demo video: PENDING
 - Verified APK build page: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/3fc84609-d3b0-4fbe-b4e4-71e24c053f7b
 - Latest APK build page: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/78f574bd-a52b-48ce-8992-d9f66fdf9e01

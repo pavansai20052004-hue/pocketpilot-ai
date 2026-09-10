@@ -18,6 +18,10 @@ Pre-existing work disclosure: the submitted repository contains a prototype and 
 
 https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site
 
+## Source repository
+
+https://github.com/pavansai20052004-hue/pocketpilot-ai
+
 ## Video walkthrough URL
 
 Pending public or unlisted upload of `submission-artifacts/PocketPilot-AI-Demo-Walkthrough.mp4`.
