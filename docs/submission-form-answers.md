@@ -24,7 +24,7 @@ https://github.com/pavansai20052004-hue/pocketpilot-ai
 
 ## Video walkthrough URL
 
-Pending public or unlisted upload of `submission-artifacts/PocketPilot-AI-Demo-Walkthrough.mp4`.
+https://youtu.be/30oo0FT4uWI
 
 ## Deck or document
 

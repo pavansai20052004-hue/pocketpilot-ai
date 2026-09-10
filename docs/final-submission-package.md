@@ -13,7 +13,7 @@ This is the single copy-ready source for the submission. Replace only the contac
 | Verified standalone Android APK | READY | Build 4: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/3fc84609-d3b0-4fbe-b4e4-71e24c053f7b |
 | Preferred Android animation build | READY | Build 5 installed and reported working: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/78f574bd-a52b-48ce-8992-d9f66fdf9e01 |
 | Source repository | READY | https://github.com/pavansai20052004-hue/pocketpilot-ai |
-| Narrated demo video | READY TO UPLOAD | `submission-artifacts/PocketPilot-AI-Demo-Walkthrough.mp4` with matching `.srt` captions |
+| Narrated demo video | READY | https://youtu.be/30oo0FT4uWI |
 | Pitch deck | READY | PDF and editable PPTX are in `submission-artifacts/` |
 | Team/contact fields | USER INPUT | Add name, email, phone, institution, and any teammate details required by the form |
 
@@ -142,7 +142,7 @@ The official guide says code must be original and written during the event windo
 
 - Public product tour: https://pocketpilot-ai.sleek-pearl-0098.chatgpt.site
 - Source repository: https://github.com/pavansai20052004-hue/pocketpilot-ai
-- Demo video: PENDING
+- Demo video: https://youtu.be/30oo0FT4uWI
 - Verified APK build page: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/3fc84609-d3b0-4fbe-b4e4-71e24c053f7b
 - Latest APK build page: https://expo.dev/accounts/zeroday-404/projects/pocketpilot-ai/builds/78f574bd-a52b-48ce-8992-d9f66fdf9e01
 
